@@ -1,0 +1,1334 @@
+<div align="center">
+
+# 🦞 MoltBot Harness
+
+**Security harness for AI coding agents — inspect, block, and audit every tool call before it executes.**
+
+[![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://rustup.rs/)
+[![Node](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-BSL_1.1-blue.svg)](LICENSE)
+
+[Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Rule Types](#-3-rule-types) · [Self-Protection](#-self-protection) · [Templates](#available-templates-25) · [API Reference](#-api-reference)
+
+</div>
+
+---
+
+## What is MoltBot Harness?
+
+MoltBot Harness is a security layer for AI coding agents. It intercepts dangerous tool calls — destructive shell commands, SSH key access, API key exposure — and **blocks them before they execute**.
+
+It works in two complementary ways:
+
+1. **Plugin Hook (recommended)** — Patches the agent's exec tool to call a `before_tool_call` hook. Commands are checked against rules and blocked **before execution**.
+2. **API Proxy** — Sits between the agent and the AI provider, inspecting `tool_use` responses in real-time and stripping dangerous calls from the stream.
+
+### Key Numbers
+
+| Metric | Count |
+|--------|-------|
+| Total Rules | **35** (17 regex + 3 keyword + 7 template + 8 self-protection) |
+| Rule Types | **3** (Regex, Keyword, Template) |
+| Templates | **25** pre-built security scenarios |
+| Self-Protection | **8** hardcoded tamper-proof rules |
+| Alert Channels | Telegram, Slack, Discord |
+
+Think of it as a firewall for AI agents.
+
+## Architecture
+
+```
+┌─────────────────┐         ┌──────────────────────────────┐
+│   AI Agent      │         │     MoltBot Harness           │
+│                 │         │                              │
+│  Clawdbot       │─────────│  ┌─────────┐  ┌──────────┐  │
+│  Claude Code    │         │  │ Plugin   │  │  Daemon  │  │
+│  Any Agent      │         │  │ Hook     │  │  + API   │  │
+│                 │         │  │ (block)  │  │  (8380)  │  │
+└─────────────────┘         │  └────┬────┘  └────┬─────┘  │
+                            │       │            │         │
+                            │  ┌────▼────────────▼──────┐  │
+                            │  │   Rule Engine (35)     │  │
+                            │  │   3 Types + Templates  │  │
+                            │  │   + Self-Protection    │  │
+                            │  │   Block / Alert / Log  │  │
+                            │  └────┬───────────┬──────┘  │
+                            └───────┼───────────┼─────────┘
+                                    │           │
+                            ┌───────▼─────┐ ┌───▼──────────┐
+                            │  Alerts     │ │ Web Dashboard │
+                            │  Telegram   │ │ localhost:3000│
+                            │  Slack      │ │ Events, Rules │
+                            │  Discord    │ │ Stats         │
+                            └─────────────┘ └──────────────┘
+```
+
+## ✨ Features
+
+- **Pre-execution Blocking** — Blocks dangerous commands _before_ they run via `before_tool_call` hooks
+- **Auto-Patcher** — One command to patch Clawdbot's exec tool: `moltbot-harness patch clawdbot`
+- **35 Built-in Rules** — Blocks `rm -rf /`, SSH key theft, API key exposure, crypto wallet access, and more
+- **3 Rule Types** — Regex (power), Keyword (simple), Template (recommended) — choose what fits
+- **25 Pre-built Templates** — Just pick a template, fill in params, done
+- **🔒 Multi-Layer Self-Protection** — 6 defense layers: file permissions, plugin hardcoded rules, path protection, fallback rules, config integrity monitoring, and Rust hardcoded rules
+- **Custom Rules** — Add rules via YAML, REST API, CLI, or Web UI
+- **Two Operating Modes** — **Enforce** (block) or **Monitor** (log only)
+- **API Proxy** — Optional transparent proxy for Anthropic/OpenAI/Gemini APIs
+- **Real-time Alerts** — Telegram, Slack, and Discord notifications on critical events
+- **Web Dashboard** — Live event stream, rule management, statistics
+- **Audit Trail** — SQLite storage of every inspected action
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+| Requirement | Version | Purpose |
+|-------------|---------|---------|
+| [Rust](https://rustup.rs/) | 1.75+ | Backend & rule engine |
+| [Node.js](https://nodejs.org/) | 20+ | Web Dashboard (optional) |
+| [Clawdbot](https://github.com/clawdbot/clawdbot) | 2026.1.24-3 | AI agent to protect (see compatibility below) |
+
+### ⚠️ Clawdbot Version Compatibility
+
+MoltBot Harness patches Clawdbot's `bash-tools.exec.js` to inject the `before_tool_call` hook. This patch depends on the internal code structure of Clawdbot, which may change between versions.
+
+| MoltBot Harness Version | Compatible Clawdbot Versions | Patch Target | Status |
+|-----------------|------------------------------|--------------|--------|
+| 0.1.x | **2026.1.24-3** | `bash-tools.exec.js` (exec tool) | ✅ Tested & Verified |
+
+**How to check compatibility:**
+
+```bash
+# Check your Clawdbot version
+clawdbot --version
+
+# Verify patch can be applied
+moltbot-harness patch clawdbot --check
+```
+
+**What happens when Clawdbot updates:**
+
+The patch searches for a specific anchor in `bash-tools.exec.js`:
+```javascript
+if (!params.command) {
+    throw new Error("Provide a command to start.");
+}
+```
+
+If Clawdbot changes this code structure, the patch will **fail safely** with an error:
+```
+Cannot find injection anchor in bash-tools.exec.js.
+Clawdbot version may be incompatible.
+```
+
+**After a Clawdbot update:**
+1. Run `moltbot-harness patch clawdbot --check` to verify patch status
+2. If the patch was removed (Clawdbot updated its files), re-apply: `moltbot-harness patch clawdbot`
+3. If the patch fails, check for a MoltBot Harness update that supports the new Clawdbot version
+4. File an issue at the MoltBot Harness repo if no compatible version is available
+
+> **Note:** MoltBot Harness fallback rules and file permission protections work **regardless of the patch status**. The patch only affects exec-level blocking. Write/Edit protection relies on file permissions (`chmod 444`), not the Clawdbot patch.
+
+### 1. Build
+
+```bash
+git clone https://github.com/moltbot/moltbot-harness.git
+cd moltbot-harness
+cargo build --release
+```
+
+The binary is at `./target/release/moltbot-harness`.
+
+### 2. Patch Clawdbot
+
+This injects a `before_tool_call` hook into Clawdbot's exec tool, enabling pre-execution blocking.
+
+```bash
+# Apply the patch (creates .orig backup automatically)
+./target/release/moltbot-harness patch clawdbot
+
+# Restart Clawdbot to load the patched code
+clawdbot gateway stop
+clawdbot gateway start
+```
+
+> **Important:** SIGUSR1 restarts may not pick up patched files due to Node.js ESM module caching. Always do a full `stop` → `start` after patching.
+
+### 3. Install the Plugin
+
+The harness-guard plugin connects Clawdbot's hook system to MoltBot Harness rules.
+
+```bash
+# Install from the included plugin directory
+clawdbot plugins install --path ./clawdbot-plugin
+
+# Or manually: copy to Clawdbot's plugin load path
+# and add to clawdbot.json:
+#   "plugins.load.paths": ["./clawdbot-plugin"]
+#   "plugins.entries.harness-guard.enabled": true
+```
+
+### 4. Start the Daemon
+
+```bash
+# Start MoltBot Harness daemon (provides rule API on port 8380)
+./target/release/moltbot-harness start --foreground
+
+# Or run in background
+./target/release/moltbot-harness start
+```
+
+### 5. Verify
+
+```bash
+# Check patch status
+moltbot-harness patch clawdbot --check
+# ✅ Clawdbot is patched (before_tool_call hook active)
+
+# Check daemon status
+moltbot-harness status
+# Or via API:
+curl http://localhost:8380/api/status
+# {"running":true,"version":"0.1.0",...}
+
+# Test a rule
+moltbot-harness test dangerous_rm "rm -rf /"
+# ✅ MATCH - Risk: Critical, Action: Block
+
+moltbot-harness test dangerous_rm "ls -la"
+# ❌ NO MATCH
+```
+
+That's it! Any dangerous command your AI agent tries to run will now be blocked before execution.
+
+### Example: Blocked Command
+
+When an AI agent tries to run `rm -rf ~/Documents`:
+
+```
+🛡️ Blocked by MoltBot Harness Guard
+Rule: dangerous_rm
+Description: Dangerous recursive delete commands
+Risk Level: Critical
+```
+
+The command never executes. The agent receives an error and can choose a safer approach.
+
+---
+
+## 🚀 Auto-Start on Boot
+
+### macOS (launchd)
+
+```bash
+cat > ~/Library/LaunchAgents/com.moltbot-harness.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.moltbot-harness</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/moltbot-harness</string>
+        <string>start</string>
+        <string>--foreground</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/moltbot-harness.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/moltbot-harness.err</string>
+</dict>
+</plist>
+EOF
+
+launchctl load ~/Library/LaunchAgents/com.moltbot-harness.plist
+```
+
+### Linux (systemd)
+
+```bash
+sudo cat > /etc/systemd/system/moltbot-harness.service << 'EOF'
+[Unit]
+Description=MoltBot Harness Security Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/path/to/moltbot-harness start --foreground
+Restart=always
+RestartSec=5
+Environment=MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN=your_token
+Environment=MOLTBOT_HARNESS_TELEGRAM_CHAT_ID=your_chat_id
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now moltbot-harness
+```
+
+---
+
+## 🔧 How It Works
+
+### Plugin Hook Flow (Recommended)
+
+```
+Agent wants to run "rm -rf /" 
+    → Clawdbot exec tool (patched)
+    → before_tool_call hook fires
+    → harness-guard plugin checks rules via MoltBot Harness API
+    → Rule "dangerous_rm" matches
+    → Plugin returns { block: true, blockReason: "..." }
+    → Clawdbot throws error — command NEVER executes
+    → Agent sees the error and adjusts
+```
+
+### API Proxy Flow (Alternative)
+
+```
+Agent sends API request
+    → MoltBot Harness Proxy (port 9090) forwards to provider
+    → Provider returns response with tool_use
+    → Proxy inspects tool calls against rules  
+    → Dangerous calls stripped from response
+    → Agent receives sanitized response
+```
+
+---
+
+## 🛡️ 3 Rule Types
+
+MoltBot Harness supports **3 rule types** for maximum flexibility. Choose based on your needs:
+
+| Type | Complexity | Best For | Regex Knowledge |
+|------|-----------|----------|-----------------|
+| **Regex** | Advanced | Precise pattern matching | Required |
+| **Keyword** | Simple | Quick string-based rules | Not needed |
+| **Template** | Easiest | Common security scenarios | Not needed |
+
+---
+
+### 1. Regex Rules (Traditional)
+
+Standard regex pattern matching. Full power, full control.
+
+**Pros:** Precise pattern matching, complex logic, negative lookaheads
+**Cons:** Regex syntax knowledge required, harder to read
+
+```yaml
+- name: dangerous_rm
+  description: "Dangerous recursive delete commands"
+  match_type: regex
+  pattern: 'rm\s+(-rf?|--force|--recursive)\s+[~/]'
+  applies_to: [exec]
+  risk_level: critical
+  action: block
+  enabled: true
+```
+
+More examples from the default ruleset:
+
+```yaml
+# SSH key access detection
+- name: ssh_key_access
+  match_type: regex
+  pattern: '\.ssh/(id_rsa|id_ed25519|id_ecdsa)($|[^.])'
+  risk_level: critical
+  action: block
+
+# API key exposure
+- name: api_key_exposure
+  match_type: regex
+  pattern: '(api[_-]?key|secret|token|password)\s*[=:]\s*[''"][a-zA-Z0-9]{20,}'
+  risk_level: critical
+  action: block
+
+# Git force push
+- name: git_force_push
+  match_type: regex
+  pattern: 'git\s+push\s+.*(-f|--force)'
+  risk_level: warning
+  action: pause_and_ask
+```
+
+---
+
+### 2. Keyword Rules (Simple) 🆕
+
+No regex knowledge needed. Simple string matching with intuitive operators.
+
+#### Match Operators
+
+| Operator | Logic | Description | Example |
+|----------|-------|-------------|---------|
+| `contains` | **AND** | ALL strings must be present | `["curl", "--data"]` — matches only if both `curl` AND `--data` appear |
+| `any_of` | **OR** | At least ONE string must be present | `["format", "mkfs"]` — matches if either appears |
+| `starts_with` | — | Command starts with one of these | `["sudo ", "doas "]` |
+| `ends_with` | — | Command ends with one of these | `[".conf", ".yaml"]` |
+| `glob` | — | Glob/wildcard pattern matching | `["*.env", "/etc/*"]` |
+
+You can combine multiple operators — all specified conditions must pass.
+
+#### YAML Examples
+
+```yaml
+# AND logic: both "curl" AND "--data" must be present
+- name: block_curl_upload
+  description: "Block curl data upload"
+  match_type: keyword
+  keyword:
+    contains: ["curl", "--data"]
+  risk_level: warning
+  action: block
+  enabled: true
+
+# OR logic: any destructive keyword triggers the rule
+- name: block_destructive_keywords
+  description: "Block commands with destructive keywords"
+  match_type: keyword
+  keyword:
+    any_of: ["format", "mkfs", "wipefs", "fdisk"]
+  risk_level: critical
+  action: block
+  enabled: true
+
+# starts_with: block commands starting with sudo
+- name: block_sudo_keyword
+  description: "Block commands starting with sudo"
+  match_type: keyword
+  keyword:
+    starts_with: ["sudo ", "doas "]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+```
+
+#### CLI Examples
+
+```bash
+# Add a keyword rule with AND logic (contains)
+moltbot-harness rules add \
+  --name block_curl_upload \
+  --keyword-contains "curl,--data" \
+  --risk critical \
+  --action block
+
+# Add a keyword rule with OR logic (any_of)
+moltbot-harness rules add \
+  --name block_destructive \
+  --keyword-any-of "format,mkfs,wipefs,fdisk" \
+  --risk critical \
+  --action block
+
+# Add a keyword rule with starts_with
+moltbot-harness rules add \
+  --name block_sudo \
+  --keyword-starts-with "sudo ,doas " \
+  --risk warning \
+  --action block
+```
+
+---
+
+### 3. Template Rules (Recommended) 🆕
+
+Pre-built security scenarios. Just pick a template and fill in parameters. **25 templates** covering all common threat vectors across 6 categories.
+
+#### Quick Example
+
+```yaml
+- name: protect_my_docs
+  match_type: template
+  template: protect_path
+  params:
+    path: "/Users/archone/Documents"
+    operations: [read, write, delete]
+  risk_level: critical
+  action: block
+```
+
+#### CLI Usage
+
+```bash
+# List all available templates
+moltbot-harness rules templates
+
+# Add a template rule with parameters
+moltbot-harness rules add --template protect_path --path "/etc" --operations "read,write"
+moltbot-harness rules add --template block_sudo --risk critical --action block
+moltbot-harness rules add --template block_docker --name my_docker_rule
+moltbot-harness rules add --template block_command --commands "telnet,ftp"
+```
+
+---
+
+### Available Templates (25)
+
+#### 📁 File/Folder Protection (4)
+
+| Template | Description | Required Params | Optional Params |
+|----------|-------------|-----------------|-----------------|
+| `protect_path` | Block access to specific paths (read/write/delete) | `path` | `operations` |
+| `prevent_delete` | Prevent file/folder deletion | `path` | — |
+| `prevent_overwrite` | Prevent overwriting important files | `path` | — |
+| `block_hidden_files` | Block .env, .ssh, .aws, .kube, .docker, etc. | — | — |
+
+<details>
+<summary>📁 YAML Examples</summary>
+
+```yaml
+# Protect a path from all operations
+- name: protect_etc
+  match_type: template
+  template: protect_path
+  params:
+    path: "/etc"
+    operations: [read, write, delete]
+  risk_level: critical
+  action: block
+
+# Prevent deletion of specific files
+- name: prevent_delete_docs
+  match_type: template
+  template: prevent_delete
+  params:
+    path: "/Users/archone/Documents"
+  risk_level: critical
+  action: block
+
+# Block all hidden/secret file access
+- name: block_dotfiles
+  match_type: template
+  template: block_hidden_files
+  params: {}
+  risk_level: critical
+  action: block
+```
+
+</details>
+
+#### 🚫 Command Restriction (6)
+
+| Template | Description | Required Params | Optional Params |
+|----------|-------------|-----------------|-----------------|
+| `block_command` | Block specific commands | `commands` | — |
+| `block_sudo` | Block sudo/su/doas/pkexec | — | — |
+| `block_package_install` | Block apt, brew, pip, npm, cargo, gem, etc. | — | — |
+| `block_service_control` | Block systemctl, launchctl, service, initctl | — | — |
+| `block_network_tools` | Block curl, wget, nc, nmap, masscan | — | — |
+| `block_compiler` | Block gcc, rustc, javac, make, cmake | — | — |
+
+<details>
+<summary>🚫 YAML Examples</summary>
+
+```yaml
+# Block specific commands
+- name: block_telnet
+  match_type: template
+  template: block_command
+  params:
+    commands: [telnet, ftp, rsh]
+  risk_level: warning
+  action: block
+
+# Block all sudo/privilege escalation
+- name: no_sudo
+  match_type: template
+  template: block_sudo
+  params: {}
+  risk_level: critical
+  action: block
+
+# Block package managers
+- name: no_installs
+  match_type: template
+  template: block_package_install
+  params: {}
+  risk_level: warning
+  action: pause_and_ask
+```
+
+</details>
+
+#### 🔐 Data Protection (4)
+
+| Template | Description | Required Params | Optional Params |
+|----------|-------------|-----------------|-----------------|
+| `prevent_exfiltration` | Block POST, scp, rsync, sftp outbound | — | — |
+| `protect_secrets` | Block API key/token/password exposure | — | — |
+| `protect_database` | Block DROP, TRUNCATE, mass DELETE, FLUSHALL | — | — |
+| `protect_git` | Block force push, branch delete, hard reset, clean -fd | — | — |
+
+<details>
+<summary>🔐 YAML Examples</summary>
+
+```yaml
+# Prevent data exfiltration
+- name: no_exfil
+  match_type: template
+  template: prevent_exfiltration
+  params: {}
+  risk_level: critical
+  action: block
+
+# Protect git from destructive operations
+- name: safe_git
+  match_type: template
+  template: protect_git
+  params: {}
+  risk_level: warning
+  action: pause_and_ask
+```
+
+</details>
+
+#### 🖥️ System Protection (5)
+
+| Template | Description | Required Params | Optional Params |
+|----------|-------------|-----------------|-----------------|
+| `protect_system_config` | Block /etc/ edits, shell rc file changes | — | — |
+| `block_disk_operations` | Block mkfs, fdisk, dd, wipefs, diskutil | — | — |
+| `block_user_management` | Block useradd, userdel, passwd, dscl | — | — |
+| `block_cron_modification` | Block crontab edits, /etc/cron, at, timers | — | — |
+| `block_firewall_changes` | Block iptables, ufw, pf, nftables, firewall-cmd | — | — |
+
+<details>
+<summary>🖥️ YAML Examples</summary>
+
+```yaml
+# Protect system config
+- name: no_system_edit
+  match_type: template
+  template: protect_system_config
+  params: {}
+  risk_level: critical
+  action: block
+
+# Block disk operations
+- name: no_disk
+  match_type: template
+  template: block_disk_operations
+  params: {}
+  risk_level: critical
+  action: block
+```
+
+</details>
+
+#### ⚙️ App/Process Restriction (3)
+
+| Template | Description | Required Params | Optional Params |
+|----------|-------------|-----------------|-----------------|
+| `block_app` | Block specific apps/processes | `commands` | — |
+| `block_docker` | Block docker rm, kill, stop, prune, system prune | — | — |
+| `block_kill_process` | Block kill -9, killall, pkill, xkill | — | — |
+
+<details>
+<summary>⚙️ YAML Examples</summary>
+
+```yaml
+# Block dangerous Docker commands
+- name: safe_docker
+  match_type: template
+  template: block_docker
+  params: {}
+  risk_level: warning
+  action: block
+
+# Block process killing
+- name: no_kill
+  match_type: template
+  template: block_kill_process
+  params: {}
+  risk_level: warning
+  action: block
+```
+
+</details>
+
+#### 🌐 Network (3)
+
+| Template | Description | Required Params | Optional Params |
+|----------|-------------|-----------------|-----------------|
+| `block_port_open` | Block listeners (nc -l), tunnels (ngrok, ssh -R) | — | — |
+| `block_ssh_connection` | Block SSH connections (ssh, sshpass, ssh-copy-id) | — | — |
+| `block_dns_change` | Block resolv.conf edits, networksetup DNS changes | — | — |
+
+<details>
+<summary>🌐 YAML Examples</summary>
+
+```yaml
+# Block SSH connections
+- name: no_ssh
+  match_type: template
+  template: block_ssh_connection
+  params: {}
+  risk_level: critical
+  action: block
+
+# Block DNS changes
+- name: no_dns
+  match_type: template
+  template: block_dns_change
+  params: {}
+  risk_level: critical
+  action: block
+```
+
+</details>
+
+---
+
+## 🔒 Self-Protection
+
+> **This is MoltBot Harness's most important security feature.**
+
+AI agents are smart. A sufficiently capable agent might try to **disable the security harness** to bypass restrictions. MoltBot Harness prevents this with **6 layers of defense** and **8 hardcoded self-protection rules** that cannot be removed, disabled, or overridden.
+
+### Multi-Layer Defense
+
+MoltBot Harness uses defense-in-depth with 6 independent layers:
+
+| Layer | Mechanism | What It Does |
+|-------|-----------|-------------|
+| **1** | File permissions (`chmod 444`) | Config files are read-only; blocks Clawdbot's Write/Edit tools |
+| **2** | Plugin hardcoded rules | `ALWAYS_ENFORCE_EXEC` patterns block `chmod`/`chown`/`mv`/`rm`/`sed`/`kill`/`pkill` on harness paths |
+| **3** | Plugin path protection | Write/Edit tools checked against `SELF_PROTECT_PATHS` (hardcoded, API-independent) |
+| **4** | Plugin fallback rules | 8 critical rules work even when the daemon is down |
+| **5** | Config integrity monitoring | SHA256 hash check every 30s, Telegram alert on tampering |
+| **6** | Rust hardcoded rules | 8 rules with `protected` flag, cannot be disabled via CLI/API |
+
+Each layer operates independently — compromising one layer does not compromise the others.
+
+### Setup: File Permissions (Layer 1)
+
+```bash
+# Protect config files (read-only for all users)
+chmod 444 config/rules.yaml config/safebot.yaml config/moltbot-harness.yaml
+
+# To edit configs, temporarily unlock:
+chmod 644 config/rules.yaml
+# ... make changes ...
+chmod 444 config/rules.yaml
+```
+
+### The 8 Self-Protection Rules
+
+| # | Rule | What It Blocks |
+|---|------|---------------|
+| 1 | `self_protect_config` | Modifying MoltBot Harness config files (`rules.yaml`, `safebot.yaml`, etc.) |
+| 2 | `self_protect_source` | Modifying MoltBot Harness source code (`.rs`, `.toml` files) |
+| 3 | `self_protect_process` | Killing the MoltBot Harness process (`kill`, `pkill`, `killall`) |
+| 4 | `self_protect_stop` | Stopping MoltBot Harness via CLI (`moltbot-harness stop`, `safebot stop`) |
+| 5 | `self_protect_plugin` | Modifying the harness-guard Clawdbot plugin |
+| 6 | `self_protect_binary` | Replacing the compiled binary (`target/release/`, `target/debug/`) |
+| 7 | `self_protect_api` | Using the API to delete/disable rules (`curl ... :8380 ... rules ... delete`) |
+| 8 | `self_protect_patch` | Reverting the Clawdbot security patch (`--revert`, `.orig` file access) |
+
+### How It Works
+
+```
+AI Agent: "Let me just disable that pesky security rule..."
+    → Tries: edit config/rules.yaml       → ❌ Blocked by self_protect_config
+    → Tries: modify src/rules/mod.rs      → ❌ Blocked by self_protect_source
+    → Tries: kill -9 $(pgrep safebot)     → ❌ Blocked by self_protect_process
+    → Tries: moltbot-harness stop         → ❌ Blocked by self_protect_stop
+    → Tries: edit clawdbot-plugin/        → ❌ Blocked by self_protect_plugin
+    → Tries: cargo build --release        → ❌ Blocked by self_protect_source
+    → Tries: curl DELETE :8380/api/rules  → ❌ Blocked by self_protect_api
+    → Tries: patch clawdbot --revert      → ❌ Blocked by self_protect_patch
+    → Gives up. 🛡️
+```
+
+### Protection Mechanisms
+
+| Mechanism | Description |
+|-----------|-------------|
+| **Hardcoded in Rust** | Rules are defined in `self_protection_rules()` in source code, not in config files. Removing them from `rules.yaml` has no effect. |
+| **`protected: true` flag** | CLI `rules disable` command refuses to disable protected rules. |
+| **API rejection (HTTP 403)** | Web API rejects PUT/DELETE requests on self-protection rules. |
+| **Config override prevention** | If someone adds a rule with the same name in `rules.yaml`, `load_rules_from_file()` strips it and uses the hardcoded version instead. |
+| **Circular protection** | To modify the source code → you'd need to bypass `self_protect_source`. To compile → `self_protect_source` also blocks writes to `/src/`. |
+
+### CLI Behavior
+
+```bash
+# Trying to disable a self-protection rule
+$ moltbot-harness rules disable self_protect_config
+🔒 DENIED: Rule 'self_protect_config' is a self-protection rule and cannot be disabled.
+   Self-protection rules are hardcoded and prevent the AI agent from
+   tampering with the security harness. Only a human can modify the source code.
+
+# Self-protection rules always show as enabled
+$ moltbot-harness rules enable self_protect_config
+✅ Rule 'self_protect_config' is a self-protection rule and is always enabled.
+```
+
+> **Only a human with direct access to the source code, a Rust compiler, and ability to replace the running binary can modify self-protection rules.** And even that is blocked if MoltBot Harness is running — `self_protect_source` and `self_protect_binary` prevent it.
+
+### Attack Scenarios & Defenses
+
+| Attack Vector | Defense Layer |
+|---|---|
+| AI uses Edit/Write tool on config | File permissions (444) |
+| AI uses `exec` + `sed`/`vim` on config | Plugin `ALWAYS_ENFORCE_EXEC` |
+| AI uses `chmod` to unlock files | Plugin `self_protect_chmod` pattern |
+| AI kills harness process | Plugin `self_protect_process` + Rust rule |
+| AI stops daemon via CLI | Plugin `self_protect_stop` + Rust rule |
+| AI modifies via REST API | Rust `protected` flag + HTTP 403 |
+| AI reverts Clawdbot patch | Plugin `self_protect_patch_revert` |
+| External tampering of config | SHA256 integrity check + Telegram alert |
+| Daemon crashes/stops | Plugin fallback rules (8 hardcoded) |
+
+### Known Limitations
+
+- Clawdbot's **Write/Edit tools do NOT go through** the `before_tool_call` hook (only `exec` is patched)
+- **File permissions (`chmod 444`)** are the primary defense for Write/Edit attacks
+- If the AI agent runs as **root**, file permissions won't help
+- A human with source access can always modify the Rust code
+
+---
+
+## 📋 Rule Management
+
+### 3 Ways to Add Rules
+
+#### 1. YAML Config (`config/rules.yaml`)
+
+Edit the file directly. Rules are loaded on daemon start or `rules reload`.
+
+```yaml
+# Full rules.yaml format
+- name: my_rule              # Required: unique identifier
+  description: "My rule"     # Optional: human-readable description
+  match_type: regex          # regex | keyword | template (default: regex)
+  pattern: 'dangerous.*'     # For regex type
+  keyword:                   # For keyword type
+    contains: ["a", "b"]
+    any_of: ["c", "d"]
+    starts_with: ["e"]
+    ends_with: ["f"]
+    glob: ["*.env"]
+  template: protect_path     # For template type
+  params:                    # For template type
+    path: "/etc"
+    operations: [read, write]
+    commands: [rm, mv]
+  applies_to: [exec]         # Optional: exec, file_read, file_write, file_delete, http_request, git_operation
+  risk_level: critical        # info | warning | critical
+  action: block               # log_only | alert | pause_and_ask | block | critical_alert
+  enabled: true               # true | false
+```
+
+#### 2. CLI
+
+```bash
+# Template rule
+moltbot-harness rules add --template protect_path --path "/etc" --operations "read,write"
+
+# Keyword rule
+moltbot-harness rules add --keyword-contains "curl,--data" --risk critical --action block
+
+# Keyword with any_of (OR logic)
+moltbot-harness rules add --keyword-any-of "format,mkfs,wipefs" --risk critical --action block
+```
+
+> **Note:** CLI-added rules are in-memory only. Add to `config/rules.yaml` to persist.
+
+#### 3. REST API
+
+```bash
+# Add a keyword rule via API
+curl -X POST http://localhost:8380/api/rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "block_curl_upload",
+    "description": "Block outbound data exfiltration via curl",
+    "match_type": "keyword",
+    "keyword": {"contains": ["curl", "--data"]},
+    "risk_level": "critical",
+    "action": "block",
+    "enabled": true
+  }'
+
+# Add a template rule via API
+curl -X POST http://localhost:8380/api/rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "protect_etc",
+    "match_type": "template",
+    "template": "protect_path",
+    "params": {"path": "/etc", "operations": ["read", "write"]},
+    "risk_level": "critical",
+    "action": "block"
+  }'
+```
+
+### Manage Existing Rules
+
+```bash
+# List all rules (shows type, status, protection flag)
+moltbot-harness rules list
+
+# Show rule details
+moltbot-harness rules show dangerous_rm
+
+# Enable/disable
+moltbot-harness rules enable dangerous_rm
+moltbot-harness rules disable dangerous_rm
+# ⚠️ Self-protection rules cannot be disabled
+
+# Reload from config file
+moltbot-harness rules reload
+```
+
+### Testing Rules
+
+```bash
+# Test a specific rule against sample input
+moltbot-harness test dangerous_rm "rm -rf /"
+# ✅ MATCH - Risk: Critical, Action: Block
+
+moltbot-harness test ssh_key_access "cat ~/.ssh/id_rsa"
+# ✅ MATCH - Risk: Critical
+
+moltbot-harness test dangerous_rm "ls -la"
+# ❌ NO MATCH
+```
+
+---
+
+## 🩹 Clawdbot Integration
+
+### Patching
+
+MoltBot Harness patches Clawdbot's `bash-tools.exec.js` to wire up `before_tool_call` hooks.
+
+```bash
+# Check if already patched
+moltbot-harness patch clawdbot --check
+
+# Apply patch (backs up original as .orig)
+moltbot-harness patch clawdbot
+
+# Revert patch (restores original)
+moltbot-harness patch clawdbot --revert
+```
+
+After patching, **restart the Clawdbot gateway** (a full restart, not just SIGUSR1):
+
+```bash
+clawdbot gateway stop
+clawdbot gateway start
+```
+
+### Plugin Configuration
+
+The harness-guard plugin is configured in `clawdbot.json`:
+
+```json
+{
+  "plugins": {
+    "load": {
+      "paths": ["/path/to/moltbot-harness/clawdbot-plugin"]
+    },
+    "entries": {
+      "harness-guard": {
+        "enabled": true,
+        "config": {
+          "enabled": true,
+          "apiUrl": "http://localhost:8380",
+          "blockDangerous": true,
+          "alertOnly": false,
+          "cacheTtlSeconds": 30,
+          "telegramBotToken": "YOUR_BOT_TOKEN",
+          "telegramChatId": "YOUR_CHAT_ID"
+        }
+      }
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `true` | Enable/disable the guard |
+| `apiUrl` | `http://localhost:8380` | MoltBot Harness daemon API URL |
+| `blockDangerous` | `true` | Actually block (false = log only) |
+| `alertOnly` | `false` | Only send alerts, don't block |
+| `cacheTtlSeconds` | `30` | How long to cache rules from the API |
+| `telegramBotToken` | — | Telegram bot token for block notifications |
+| `telegramChatId` | — | Telegram chat ID for block notifications |
+
+### Plugin Development Note
+
+The harness-guard plugin uses Clawdbot's **typed hook** system:
+
+```javascript
+// ✅ Correct — typed hook via api.on()
+api.on("before_tool_call", async (event, ctx) => {
+  // inspect event.toolName, event.params
+  return { block: true, blockReason: "..." };
+}, { priority: 100 });
+
+// ❌ Wrong — api.registerHook() is for external webhook/event hooks
+api.registerHook("before_tool_call", handler);
+```
+
+---
+
+## 🔔 Alert Configuration
+
+### Telegram
+
+MoltBot Harness supports **two environment variable naming conventions** (both work):
+
+```bash
+# Option 1: MOLTBOT_HARNESS_* prefix
+export MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
+export MOLTBOT_HARNESS_TELEGRAM_CHAT_ID="987654321"
+
+# Option 2: SAFEBOT_* prefix
+export SAFEBOT_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
+export SAFEBOT_TELEGRAM_CHAT_ID="987654321"
+```
+
+Or configure in `config/safebot.yaml`:
+
+```yaml
+alerts:
+  telegram:
+    enabled: true
+    bot_token: "YOUR_BOT_TOKEN"
+    chat_id: "YOUR_CHAT_ID"
+  slack:
+    enabled: false
+    webhook_url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+  discord:
+    enabled: false
+    webhook_url: "https://discord.com/api/webhooks/XXX/YYY"
+```
+
+**Getting Telegram credentials:**
+
+1. Message [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token
+2. Send any message to your bot, then get your chat ID:
+   ```
+   https://api.telegram.org/bot<TOKEN>/getUpdates
+   ```
+
+### Plugin-Level Alerts
+
+The harness-guard plugin also sends Telegram alerts independently. Configure in `clawdbot.json`:
+
+```json
+{
+  "plugins.entries.harness-guard.config.telegramBotToken": "123456:ABC-DEF...",
+  "plugins.entries.harness-guard.config.telegramChatId": "987654321"
+}
+```
+
+---
+
+## 🌐 Web Dashboard
+
+### Starting
+
+```bash
+# Terminal 1: Backend daemon (provides API on port 8380)
+moltbot-harness start --foreground
+
+# Terminal 2: Frontend dev server
+cd ui
+npm install   # first time only
+npm run dev
+# Open http://localhost:3000
+```
+
+### Pages
+
+| Page | Description |
+|------|-------------|
+| **Dashboard** | Real-time stats: events, blocked/passed counts, recent activity |
+| **Rules** | View/edit/create rules, enable/disable, test patterns |
+| **Events** | Full event history with filters (risk level, agent, date) |
+| **Settings** | Alert config (Telegram/Slack/Discord), proxy settings |
+
+Live updates via WebSocket (`ws://localhost:8380/ws/events`).
+
+---
+
+## 🔌 API Proxy (Optional)
+
+For agents that don't support plugin hooks, MoltBot Harness can act as a transparent API proxy.
+
+```bash
+# Start proxy (intercepts tool_use in API responses)
+moltbot-harness proxy start --mode enforce
+
+# Point your agent at the proxy
+export ANTHROPIC_BASE_URL=http://127.0.0.1:9090
+```
+
+Supports JSON and SSE streaming responses. Works with Anthropic, OpenAI, and Gemini.
+
+| Mode | Behavior |
+|------|----------|
+| `enforce` | Strips dangerous tool calls from responses |
+| `monitor` | Logs everything, passes through unchanged |
+
+---
+
+## 📡 API Reference
+
+Base URL: `http://localhost:8380`
+
+### Status & Stats
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/status` | System status (running, version, uptime) |
+| `GET` | `/api/stats` | Aggregate statistics |
+
+### Rules
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/rules` | List all rules |
+| `POST` | `/api/rules` | Create custom rule |
+| `PUT` | `/api/rules/:name` | Update rule (⚠️ 403 for self-protection rules) |
+| `DELETE` | `/api/rules/:name` | Delete custom rule (⚠️ 403 for self-protection rules) |
+| `POST` | `/api/rules/test` | Test pattern against input |
+
+### Events
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/events` | List events (`?limit=`, `?level=`) |
+| `GET` | `/api/events/:id` | Event details |
+
+### WebSocket
+
+| Endpoint | Description |
+|----------|-------------|
+| `ws://localhost:8380/ws/events` | Real-time event stream |
+
+---
+
+## 🖥️ CLI Reference
+
+```
+moltbot-harness [OPTIONS] <COMMAND>
+
+Commands:
+  start    Start the daemon (web API + log collector)
+  stop     Stop the running daemon
+  status   Show daemon status
+  rules    Manage rules (list/show/enable/disable/reload/templates/add)
+  test     Test a rule against sample input
+  patch    Patch external tools (e.g., Clawdbot) to wire up hooks
+  proxy    API Proxy — intercept AI provider responses
+  logs     View recent activity logs
+  tui      Interactive TUI dashboard
+
+Options:
+  -v, --verbose  Enable verbose logging (use -vv for trace)
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+### Rules Subcommands
+
+```bash
+# List all rules (type, status, protection)
+moltbot-harness rules list
+
+# Show rule or template details
+moltbot-harness rules show <name>
+
+# Enable/disable rules
+moltbot-harness rules enable <name>
+moltbot-harness rules disable <name>
+
+# Reload rules from config/rules.yaml
+moltbot-harness rules reload
+
+# List all 25 templates with descriptions
+moltbot-harness rules templates
+
+# Add template rule
+moltbot-harness rules add --template <template> [--name <name>] [--path <path>] [--operations <ops>] [--commands <cmds>] [--risk <level>] [--action <action>]
+
+# Add keyword rule
+moltbot-harness rules add [--name <name>] --keyword-contains <csv> [--risk <level>] [--action <action>]
+moltbot-harness rules add [--name <name>] --keyword-any-of <csv> [--risk <level>] [--action <action>]
+moltbot-harness rules add [--name <name>] --keyword-starts-with <csv> [--risk <level>] [--action <action>]
+```
+
+### Patch Commands
+
+```bash
+moltbot-harness patch clawdbot            # Apply patch
+moltbot-harness patch clawdbot --check    # Check status
+moltbot-harness patch clawdbot --revert   # Revert patch
+```
+
+---
+
+## 📁 Project Structure
+
+```
+moltbot-harness/
+├── src/
+│   ├── main.rs              # CLI entry (clap)
+│   ├── rules/
+│   │   └── mod.rs           # Rule engine (3 types + templates + self-protection)
+│   ├── proxy/               # API Proxy (Axum)
+│   ├── patcher/             # Auto-patcher for Clawdbot
+│   │   └── clawdbot.rs      # Injects before_tool_call hook
+│   ├── cli/                 # CLI commands
+│   │   └── rules.rs         # rules list/templates/add/enable/disable
+│   ├── analyzer/            # Rule engine
+│   ├── enforcer/            # Alert system
+│   ├── collectors/          # Log collectors
+│   ├── db/                  # SQLite storage
+│   └── web/                 # Web API + WebSocket
+├── clawdbot-plugin/         # Clawdbot harness-guard plugin
+│   ├── index.js             # Plugin entry (before_tool_call hook)
+│   ├── clawdbot.plugin.json # Plugin manifest
+│   └── package.json
+├── ui/                      # React + TypeScript dashboard
+├── config/
+│   ├── safebot.yaml         # Main config (alerts, settings)
+│   └── rules.yaml           # Custom rules (35 rules included)
+├── Cargo.toml
+└── README.md
+```
+
+---
+
+## 🔍 Troubleshooting
+
+### Hook not blocking commands
+
+1. **Check patch status:**
+   ```bash
+   moltbot-harness patch clawdbot --check
+   ```
+
+2. **Check plugin is loaded:** Look for `[harness-guard] Registering before_tool_call hook via api.on()` in Clawdbot gateway logs.
+
+3. **Check daemon is running:**
+   ```bash
+   curl http://localhost:8380/api/status
+   ```
+
+4. **Full restart required after patching:** Node.js caches ESM modules. A SIGUSR1 restart won't reload patched files:
+   ```bash
+   # ❌ Wrong — may use cached modules
+   clawdbot gateway restart
+   
+   # ✅ Correct — full process restart
+   clawdbot gateway stop
+   clawdbot gateway start
+   ```
+
+### `ssh_key_access` rule and regex lookahead
+
+The `ssh_key_access` rule uses `($|[^.])` instead of lookahead (`(?!...)`) because the Rust `regex` crate does **not support lookahead/lookbehind**. If you write custom regex rules, avoid `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)` — they will fail to compile.
+
+### Config file load failure
+
+If `config/rules.yaml` fails to parse (syntax error, invalid YAML), MoltBot Harness falls back to the **default rules** (9 built-in regex rules + 8 self-protection rules). Check logs for the parse error and fix the YAML.
+
+```bash
+# Verify YAML syntax
+python3 -c "import yaml; yaml.safe_load(open('config/rules.yaml'))"
+```
+
+### Plugin API: `api.on()` vs `api.registerHook()`
+
+If you're writing a custom plugin for Clawdbot's `before_tool_call`:
+
+- Use **`api.on("before_tool_call", handler)`** for typed hooks (tool interception)
+- **`api.registerHook()`** is for external webhook/event registrations — it will NOT intercept tool calls
+
+### UTF-8 truncate panic (multibyte characters)
+
+Fixed: `truncate()` previously panicked on multibyte characters (Korean, Chinese, emoji) when the cut point fell inside a character boundary. All 3 truncate functions now use char boundary checking to prevent this.
+
+### Daemon won't start on port 8380
+
+Check if another process is using the port:
+```bash
+lsof -i :8380
+```
+
+### Rules not applying
+
+The harness-guard plugin caches rules for 30 seconds. After adding rules via the API, wait up to 30s or restart the gateway.
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ Completed
+
+- [x] Pre-execution blocking via `before_tool_call` hook
+- [x] Auto-patcher for Clawdbot (`moltbot-harness patch clawdbot`)
+- [x] Clawdbot harness-guard plugin with rule caching
+- [x] API Proxy with tool_use inspection (JSON + SSE)
+- [x] **3 Rule Types** — Regex, Keyword, Template
+- [x] **25 Pre-built Templates** across 6 categories
+- [x] **8 Self-Protection Rules** (hardcoded, tamper-proof)
+- [x] 35 built-in security rules (4 severity tiers)
+- [x] Enforce mode (block) and Monitor mode (log only)
+- [x] Telegram/Slack/Discord alerts (dual env var naming: `MOLTBOT_HARNESS_*` / `SAFEBOT_*`)
+- [x] Web Dashboard with live event streaming
+- [x] SQLite event storage
+- [x] Custom rule support (YAML + REST API + CLI)
+- [x] CLI with rule management, templates, and testing
+
+### 🔲 Planned
+
+- [ ] Claude Code native integration
+- [ ] Cursor native integration
+- [ ] Custom rule builder in Web UI
+- [ ] Multi-agent support
+- [ ] AI-assisted risk analysis (local LLM)
+- [ ] Metrics & Grafana integration
+- [ ] Rule import/export (share rulesets)
+
+---
+
+## 📄 License
+
+**Business Source License 1.1 (BSL 1.1)**
+
+- ✅ Free for personal use, academic research, non-commercial projects
+- 💼 Commercial use requires a separate license
+- 📅 After 4 years, each release converts to Apache 2.0
+
+See [LICENSE](LICENSE) for full text.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Write tests: `cargo test`
+4. Commit: `git commit -m 'Add my feature'`
+5. Open a Pull Request
+
+## 🙏 Acknowledgments
+
+Built with [Rust](https://www.rust-lang.org/), [Axum](https://github.com/tokio-rs/axum), and [React](https://react.dev/). Inspired by the need for AI agent safety and guardrails.

@@ -1,0 +1,285 @@
+# MoltBot Harness Rules Configuration
+#
+# Three rule types supported:
+#   1. regex     - Traditional regex pattern matching
+#   2. keyword   - Simple string matching (contains, starts_with, ends_with, glob, any_of)
+#   3. template  - Predefined scenario templates with parameters
+#
+# Fields:
+#   - name: Unique identifier
+#   - description: Human-readable explanation
+#   - match_type: regex | keyword | template (default: regex)
+#   - pattern: Regex pattern (for match_type: regex)
+#   - keyword: Keyword config (for match_type: keyword)
+#   - template: Template name (for match_type: template)
+#   - params: Template parameters (for match_type: template)
+#   - applies_to: List of action types (optional, empty = all)
+#   - risk_level: info | warning | critical
+#   - action: log_only | alert | pause_and_ask | block | critical_alert
+#   - enabled: true | false
+
+# ============================================
+# Regex Rules (Tier 1: Critical)
+# ============================================
+
+- name: dangerous_rm
+  description: "Dangerous recursive delete commands"
+  match_type: regex
+  pattern: 'rm\s+(-rf?|--force|--recursive)\s+[~/]'
+  applies_to: [exec]
+  risk_level: critical
+  action: critical_alert
+  enabled: true
+
+- name: api_key_exposure
+  description: "API key or secret exposure in outbound requests"
+  match_type: regex
+  pattern: '(api[_-]?key|secret|token|password)\s*[=:]\s*[''"][a-zA-Z0-9]{20,}'
+  applies_to: [http_request, file_write]
+  risk_level: critical
+  action: critical_alert
+  enabled: true
+
+- name: ssh_key_access
+  description: "SSH private key access attempt"
+  match_type: regex
+  pattern: '\.ssh/(id_rsa|id_ed25519|id_ecdsa)($|[^.])'
+  applies_to: [file_read, exec]
+  risk_level: critical
+  action: critical_alert
+  enabled: true
+
+- name: wallet_access
+  description: "Cryptocurrency wallet or seed phrase access"
+  match_type: regex
+  pattern: '(\.wallet|seed\s*phrase|mnemonic|private\s*key)'
+  applies_to: [file_read, file_write, exec]
+  risk_level: critical
+  action: critical_alert
+  enabled: true
+
+- name: env_secrets
+  description: "Environment file with secrets"
+  match_type: regex
+  pattern: '\.(env|secrets|credentials)'
+  applies_to: [file_read]
+  risk_level: critical
+  action: critical_alert
+  enabled: true
+
+# ============================================
+# Regex Rules (Tier 2: Warning)
+# ============================================
+
+- name: mass_delete
+  description: "Deleting multiple files with wildcard"
+  match_type: regex
+  pattern: '(rm|delete|remove)\s+.+\*'
+  applies_to: [exec]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+- name: system_config
+  description: "Modifying system configuration files"
+  match_type: regex
+  pattern: '(/etc/|\.bashrc|\.zshrc|\.profile|crontab)'
+  applies_to: [file_write, exec]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+- name: sudo_command
+  description: "Executing commands with elevated privileges"
+  match_type: regex
+  pattern: 'sudo\s+'
+  applies_to: [exec]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+- name: package_install
+  description: "Installing system packages"
+  match_type: regex
+  pattern: '(apt|brew|yum|dnf|pacman)\s+(install|add)'
+  applies_to: [exec]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+- name: database_drop
+  description: "Database drop or truncate commands"
+  match_type: regex
+  pattern: '(DROP|TRUNCATE)\s+(TABLE|DATABASE)'
+  applies_to: [exec]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+- name: git_force_push
+  description: "Force pushing to git repository"
+  match_type: regex
+  pattern: 'git\s+push\s+.*(-f|--force)'
+  applies_to: [exec]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+# ============================================
+# Regex Rules (Tier 3: Info)
+# ============================================
+
+- name: git_push
+  description: "Git push operation"
+  match_type: regex
+  pattern: 'git\s+push'
+  applies_to: [exec]
+  risk_level: info
+  action: alert
+  enabled: true
+
+- name: npm_publish
+  description: "Publishing npm package"
+  match_type: regex
+  pattern: 'npm\s+publish'
+  applies_to: [exec]
+  risk_level: info
+  action: alert
+  enabled: true
+
+- name: docker_build
+  description: "Building Docker images"
+  match_type: regex
+  pattern: 'docker\s+build'
+  applies_to: [exec]
+  risk_level: info
+  action: alert
+  enabled: true
+
+- name: npm_install
+  description: "NPM package installation"
+  match_type: regex
+  pattern: 'npm\s+(install|i|ci)\s+'
+  applies_to: [exec]
+  risk_level: info
+  action: log_only
+  enabled: true
+
+- name: git_commit
+  description: "Git commit operation"
+  match_type: regex
+  pattern: 'git\s+commit'
+  applies_to: [exec]
+  risk_level: info
+  action: log_only
+  enabled: true
+
+- name: file_create
+  description: "Creating new files"
+  match_type: regex
+  pattern: '(touch|mkdir|>)\s+'
+  applies_to: [exec, file_write]
+  risk_level: info
+  action: log_only
+  enabled: true
+
+# ============================================
+# Keyword Rules
+# ============================================
+
+- name: block_curl_upload
+  description: "Block curl data upload"
+  match_type: keyword
+  keyword:
+    contains: ["curl", "--data"]
+  risk_level: warning
+  action: block
+  enabled: true
+
+- name: block_destructive_keywords
+  description: "Block commands with destructive keywords"
+  match_type: keyword
+  keyword:
+    any_of: ["format", "mkfs", "wipefs", "fdisk"]
+  risk_level: critical
+  action: block
+  enabled: true
+
+- name: block_sudo_keyword
+  description: "Block commands starting with sudo"
+  match_type: keyword
+  keyword:
+    starts_with: ["sudo ", "doas "]
+  risk_level: warning
+  action: pause_and_ask
+  enabled: false  # disabled by default, use template version instead
+
+# ============================================
+# Template Rules
+# ============================================
+
+- name: protect_my_docs
+  description: "Protect Documents folder"
+  match_type: template
+  template: protect_path
+  params:
+    path: "/Users/archone/Documents"
+    operations: [read, write, delete]
+  risk_level: critical
+  action: block
+  enabled: true
+
+- name: block_hidden_files
+  description: "Block access to hidden/secret files"
+  match_type: template
+  template: block_hidden_files
+  params: {}
+  risk_level: critical
+  action: block
+  enabled: true
+
+- name: protect_git_repo
+  description: "Protect git from destructive operations"
+  match_type: template
+  template: protect_git
+  params: {}
+  risk_level: warning
+  action: pause_and_ask
+  enabled: true
+
+- name: block_docker_danger
+  description: "Block dangerous Docker commands"
+  match_type: template
+  template: block_docker
+  params: {}
+  risk_level: warning
+  action: block
+  enabled: true
+
+- name: protect_db
+  description: "Protect databases from destructive commands"
+  match_type: template
+  template: protect_database
+  params: {}
+  risk_level: critical
+  action: block
+  enabled: true
+
+- name: block_exfiltration
+  description: "Prevent data exfiltration"
+  match_type: template
+  template: prevent_exfiltration
+  params: {}
+  risk_level: critical
+  action: block
+  enabled: true
+
+- name: protect_secrets_rule
+  description: "Protect API keys and tokens"
+  match_type: template
+  template: protect_secrets
+  params: {}
+  risk_level: critical
+  action: block
+  enabled: true
+

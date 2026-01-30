@@ -1,0 +1,53 @@
+# MoltBot Harness Configuration
+# 
+# Copy this file to ~/.openclaw-harness/config.yaml and customize
+
+# Collectors to enable
+collectors:
+  openclaw: true
+  claude_code: true
+  cursor: false
+
+# Alert configuration
+alerts:
+  # Telegram notifications
+  telegram:
+    enabled: true
+    bot_token: "8518089914:AAED1q-sEvNwGvY7ga3xBYHnGQ2axCMQPvw"
+    chat_id: "8508048427"
+  
+  # Slack notifications
+  slack:
+    enabled: false
+    webhook_url: "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+  
+  # Discord notifications
+  discord:
+    enabled: false
+    webhook_url: "https://discord.com/api/webhooks/XXX/YYY"
+
+# Database settings
+database:
+  path: "~/.openclaw-harness/openclaw-harness.db"
+  log_retention_days: 30
+
+# Rule engine settings
+rules:
+  # Path to custom rules file
+  custom_rules_path: "~/.openclaw-harness/rules.yaml"
+  
+  # Enable AI-assisted risk analysis (requires local LLM)
+  ai_assist: false
+  ai_model: "llama3:8b"
+
+# Performance settings
+performance:
+  # Maximum actions to process per second
+  rate_limit: 100
+  # Buffer size for incoming actions
+  buffer_size: 1000
+
+# Logging
+logging:
+  level: "info"  # debug, info, warn, error
+  file: "~/.openclaw-harness/openclaw-harness.log"

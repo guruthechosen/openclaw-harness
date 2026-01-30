@@ -16,7 +16,7 @@ pub async fn run() -> anyhow::Result<()> {
         // - Critical alerts count
     } else {
         println!("Status: 🔴 Stopped");
-        println!("\nRun 'moltbot-harness start' to start the daemon");
+        println!("\nRun 'openclaw-harness start' to start the daemon");
     }
     
     Ok(())

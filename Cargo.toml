@@ -1,12 +1,12 @@
 [package]
-name = "moltbot-harness"
+name = "openclaw-harness"
 version = "0.1.0"
 edition = "2021"
 authors = ["Sean <sparkishy@gmail.com>"]
 description = "Security harness for AI coding agents"
 license = "BSL-1.1"
-repository = "https://github.com/clawdbot/moltbot-harness"
-keywords = ["ai", "security", "monitoring", "moltbot", "claude"]
+repository = "https://github.com/sparkishy/openclaw-harness"
+keywords = ["ai", "security", "monitoring", "openclaw", "claude"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
@@ -89,5 +89,5 @@ codegen-units = 1
 strip = true
 
 [[bin]]
-name = "moltbot-harness"
+name = "openclaw-harness"
 path = "src/main.rs"

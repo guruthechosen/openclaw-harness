@@ -35,7 +35,7 @@ pub async fn get_status(
         running: true,
         version: env!("CARGO_PKG_VERSION").to_string(),
         uptime_seconds: uptime,
-        monitoring: vec!["moltbot".to_string()],
+        monitoring: vec!["openclaw".to_string()],
     })
 }
 
@@ -491,8 +491,8 @@ pub async fn get_alert_config(
     State(_state): State<Arc<AppState>>,
 ) -> Json<AlertConfigResponse> {
     // Check env vars first, then config file
-    let token = std::env::var("MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN").ok();
-    let chat_id = std::env::var("MOLTBOT_HARNESS_TELEGRAM_CHAT_ID").ok();
+    let token = std::env::var("OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN").ok();
+    let chat_id = std::env::var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID").ok();
 
     // Try loading from config file
     let file_config = load_alert_config_from_file();
@@ -527,11 +527,11 @@ pub async fn update_alert_config(
     // Also set env vars for current process (so proxy picks them up)
     if let Some(ref token) = body.telegram_bot_token {
         if !token.contains("****") {
-            std::env::set_var("MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN", token);
+            std::env::set_var("OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN", token);
         }
     }
     if let Some(ref chat_id) = body.telegram_chat_id {
-        std::env::set_var("MOLTBOT_HARNESS_TELEGRAM_CHAT_ID", chat_id);
+        std::env::set_var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID", chat_id);
     }
 
     StatusCode::OK

@@ -2,7 +2,7 @@
 
 ## Overview
 
-MoltBot Harness is a security daemon that monitors AI agents (Moltbot, Claude Code, Cursor) for potentially dangerous actions.
+MoltBot Harness is a security daemon that monitors AI agents (OpenClaw, Claude Code, Cursor) for potentially dangerous actions.
 
 ## Design Principles
 
@@ -20,7 +20,7 @@ Platform-specific modules that watch for agent activity:
 ```
 collectors/
 ├── mod.rs           # Collector trait definition
-├── moltbot.rs       # Moltbot/Clawdbot log parser
+├── openclaw.rs       # OpenClaw/Clawdbot log parser
 ├── claude_code.rs   # Claude Code log parser
 └── cursor.rs        # Cursor IDE integration
 ```
@@ -111,14 +111,14 @@ cli/
 
 ## Configuration
 
-Configuration files are stored in `~/.moltbot-harness/`:
+Configuration files are stored in `~/.openclaw-harness/`:
 
 ```
-~/.moltbot-harness/
+~/.openclaw-harness/
 ├── config.yaml      # Main configuration
 ├── rules.yaml       # Custom rules
-├── moltbot-harness.db       # SQLite database
-└── moltbot-harness.log      # Log file
+├── openclaw-harness.db       # SQLite database
+└── openclaw-harness.log      # Log file
 ```
 
 ## Security Considerations

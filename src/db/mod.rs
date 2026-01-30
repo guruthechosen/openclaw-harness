@@ -181,7 +181,7 @@ impl Database {
 
 fn parse_agent_type(s: &str) -> AgentType {
     match s.to_lowercase().as_str() {
-        "moltbot" => AgentType::Moltbot,
+        "openclaw" => AgentType::OpenClaw,
         "claude_code" => AgentType::ClaudeCode,
         "cursor" => AgentType::Cursor,
         "ralph" => AgentType::Ralph,
@@ -222,7 +222,7 @@ mod tests {
         let action = AgentAction {
             id: "test-1".to_string(),
             timestamp: chrono::Utc::now(),
-            agent: AgentType::Moltbot,
+            agent: AgentType::OpenClaw,
             action_type: ActionType::Exec,
             content: "ls -la".to_string(),
             target: None,

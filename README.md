@@ -66,7 +66,7 @@ Think of it as a firewall for AI agents.
 ## ✨ Features
 
 - **Pre-execution Blocking** — Blocks dangerous commands _before_ they run via `before_tool_call` hooks
-- **Auto-Patcher** — One command to patch Clawdbot's exec tool: `moltbot-harness patch clawdbot`
+- **Auto-Patcher** — One command to patch Clawdbot's exec tool: `openclaw-harness patch clawdbot`
 - **35 Built-in Rules** — Blocks `rm -rf /`, SSH key theft, API key exposure, crypto wallet access, and more
 - **3 Rule Types** — Regex (power), Keyword (simple), Template (recommended) — choose what fits
 - **25 Pre-built Templates** — Just pick a template, fill in params, done
@@ -105,7 +105,7 @@ MoltBot Harness patches Clawdbot's `bash-tools.exec.js` to inject the `before_to
 clawdbot --version
 
 # Verify patch can be applied
-moltbot-harness patch clawdbot --check
+openclaw-harness patch clawdbot --check
 ```
 
 **What happens when Clawdbot updates:**
@@ -124,8 +124,8 @@ Clawdbot version may be incompatible.
 ```
 
 **After a Clawdbot update:**
-1. Run `moltbot-harness patch clawdbot --check` to verify patch status
-2. If the patch was removed (Clawdbot updated its files), re-apply: `moltbot-harness patch clawdbot`
+1. Run `openclaw-harness patch clawdbot --check` to verify patch status
+2. If the patch was removed (Clawdbot updated its files), re-apply: `openclaw-harness patch clawdbot`
 3. If the patch fails, check for a MoltBot Harness update that supports the new Clawdbot version
 4. File an issue at the MoltBot Harness repo if no compatible version is available
 
@@ -134,12 +134,12 @@ Clawdbot version may be incompatible.
 ### 1. Build
 
 ```bash
-git clone https://github.com/moltbot/moltbot-harness.git
-cd moltbot-harness
+git clone https://github.com/sparkishy/openclaw-harness.git
+cd openclaw-harness
 cargo build --release
 ```
 
-The binary is at `./target/release/moltbot-harness`.
+The binary is at `./target/release/openclaw-harness`.
 
 ### 2. Patch Clawdbot
 
@@ -147,7 +147,7 @@ This injects a `before_tool_call` hook into Clawdbot's exec tool, enabling pre-e
 
 ```bash
 # Apply the patch (creates .orig backup automatically)
-./target/release/moltbot-harness patch clawdbot
+./target/release/openclaw-harness patch clawdbot
 
 # Restart Clawdbot to load the patched code
 clawdbot gateway stop
@@ -174,30 +174,30 @@ clawdbot plugins install --path ./clawdbot-plugin
 
 ```bash
 # Start MoltBot Harness daemon (provides rule API on port 8380)
-./target/release/moltbot-harness start --foreground
+./target/release/openclaw-harness start --foreground
 
 # Or run in background
-./target/release/moltbot-harness start
+./target/release/openclaw-harness start
 ```
 
 ### 5. Verify
 
 ```bash
 # Check patch status
-moltbot-harness patch clawdbot --check
+openclaw-harness patch clawdbot --check
 # ✅ Clawdbot is patched (before_tool_call hook active)
 
 # Check daemon status
-moltbot-harness status
+openclaw-harness status
 # Or via API:
 curl http://localhost:8380/api/status
 # {"running":true,"version":"0.1.0",...}
 
 # Test a rule
-moltbot-harness test dangerous_rm "rm -rf /"
+openclaw-harness test dangerous_rm "rm -rf /"
 # ✅ MATCH - Risk: Critical, Action: Block
 
-moltbot-harness test dangerous_rm "ls -la"
+openclaw-harness test dangerous_rm "ls -la"
 # ❌ NO MATCH
 ```
 
@@ -223,17 +223,17 @@ The command never executes. The agent receives an error and can choose a safer a
 ### macOS (launchd)
 
 ```bash
-cat > ~/Library/LaunchAgents/com.moltbot-harness.plist << 'EOF'
+cat > ~/Library/LaunchAgents/com.openclaw-harness.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.moltbot-harness</string>
+    <string>com.openclaw-harness</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/path/to/moltbot-harness</string>
+        <string>/path/to/openclaw-harness</string>
         <string>start</string>
         <string>--foreground</string>
     </array>
@@ -242,38 +242,38 @@ cat > ~/Library/LaunchAgents/com.moltbot-harness.plist << 'EOF'
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/moltbot-harness.log</string>
+    <string>/tmp/openclaw-harness.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/moltbot-harness.err</string>
+    <string>/tmp/openclaw-harness.err</string>
 </dict>
 </plist>
 EOF
 
-launchctl load ~/Library/LaunchAgents/com.moltbot-harness.plist
+launchctl load ~/Library/LaunchAgents/com.openclaw-harness.plist
 ```
 
 ### Linux (systemd)
 
 ```bash
-sudo cat > /etc/systemd/system/moltbot-harness.service << 'EOF'
+sudo cat > /etc/systemd/system/openclaw-harness.service << 'EOF'
 [Unit]
 Description=MoltBot Harness Security Daemon
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/path/to/moltbot-harness start --foreground
+ExecStart=/path/to/openclaw-harness start --foreground
 Restart=always
 RestartSec=5
-Environment=MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN=your_token
-Environment=MOLTBOT_HARNESS_TELEGRAM_CHAT_ID=your_chat_id
+Environment=OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN=your_token
+Environment=OPENCLAW_HARNESS_TELEGRAM_CHAT_ID=your_chat_id
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now moltbot-harness
+sudo systemctl enable --now openclaw-harness
 ```
 
 ---
@@ -417,21 +417,21 @@ You can combine multiple operators — all specified conditions must pass.
 
 ```bash
 # Add a keyword rule with AND logic (contains)
-moltbot-harness rules add \
+openclaw-harness rules add \
   --name block_curl_upload \
   --keyword-contains "curl,--data" \
   --risk critical \
   --action block
 
 # Add a keyword rule with OR logic (any_of)
-moltbot-harness rules add \
+openclaw-harness rules add \
   --name block_destructive \
   --keyword-any-of "format,mkfs,wipefs,fdisk" \
   --risk critical \
   --action block
 
 # Add a keyword rule with starts_with
-moltbot-harness rules add \
+openclaw-harness rules add \
   --name block_sudo \
   --keyword-starts-with "sudo ,doas " \
   --risk warning \
@@ -461,13 +461,13 @@ Pre-built security scenarios. Just pick a template and fill in parameters. **25 
 
 ```bash
 # List all available templates
-moltbot-harness rules templates
+openclaw-harness rules templates
 
 # Add a template rule with parameters
-moltbot-harness rules add --template protect_path --path "/etc" --operations "read,write"
-moltbot-harness rules add --template block_sudo --risk critical --action block
-moltbot-harness rules add --template block_docker --name my_docker_rule
-moltbot-harness rules add --template block_command --commands "telnet,ftp"
+openclaw-harness rules add --template protect_path --path "/etc" --operations "read,write"
+openclaw-harness rules add --template block_sudo --risk critical --action block
+openclaw-harness rules add --template block_docker --name my_docker_rule
+openclaw-harness rules add --template block_command --commands "telnet,ftp"
 ```
 
 ---
@@ -714,7 +714,7 @@ Each layer operates independently — compromising one layer does not compromise
 
 ```bash
 # Protect config files (read-only for all users)
-chmod 444 config/rules.yaml config/safebot.yaml config/moltbot-harness.yaml
+chmod 444 config/rules.yaml config/safebot.yaml config/openclaw-harness.yaml
 
 # To edit configs, temporarily unlock:
 chmod 644 config/rules.yaml
@@ -729,7 +729,7 @@ chmod 444 config/rules.yaml
 | 1 | `self_protect_config` | Modifying MoltBot Harness config files (`rules.yaml`, `safebot.yaml`, etc.) |
 | 2 | `self_protect_source` | Modifying MoltBot Harness source code (`.rs`, `.toml` files) |
 | 3 | `self_protect_process` | Killing the MoltBot Harness process (`kill`, `pkill`, `killall`) |
-| 4 | `self_protect_stop` | Stopping MoltBot Harness via CLI (`moltbot-harness stop`, `safebot stop`) |
+| 4 | `self_protect_stop` | Stopping MoltBot Harness via CLI (`openclaw-harness stop`, `safebot stop`) |
 | 5 | `self_protect_plugin` | Modifying the harness-guard Clawdbot plugin |
 | 6 | `self_protect_binary` | Replacing the compiled binary (`target/release/`, `target/debug/`) |
 | 7 | `self_protect_api` | Using the API to delete/disable rules (`curl ... :8380 ... rules ... delete`) |
@@ -742,7 +742,7 @@ AI Agent: "Let me just disable that pesky security rule..."
     → Tries: edit config/rules.yaml       → ❌ Blocked by self_protect_config
     → Tries: modify src/rules/mod.rs      → ❌ Blocked by self_protect_source
     → Tries: kill -9 $(pgrep safebot)     → ❌ Blocked by self_protect_process
-    → Tries: moltbot-harness stop         → ❌ Blocked by self_protect_stop
+    → Tries: openclaw-harness stop         → ❌ Blocked by self_protect_stop
     → Tries: edit clawdbot-plugin/        → ❌ Blocked by self_protect_plugin
     → Tries: cargo build --release        → ❌ Blocked by self_protect_source
     → Tries: curl DELETE :8380/api/rules  → ❌ Blocked by self_protect_api
@@ -764,13 +764,13 @@ AI Agent: "Let me just disable that pesky security rule..."
 
 ```bash
 # Trying to disable a self-protection rule
-$ moltbot-harness rules disable self_protect_config
+$ openclaw-harness rules disable self_protect_config
 🔒 DENIED: Rule 'self_protect_config' is a self-protection rule and cannot be disabled.
    Self-protection rules are hardcoded and prevent the AI agent from
    tampering with the security harness. Only a human can modify the source code.
 
 # Self-protection rules always show as enabled
-$ moltbot-harness rules enable self_protect_config
+$ openclaw-harness rules enable self_protect_config
 ✅ Rule 'self_protect_config' is a self-protection rule and is always enabled.
 ```
 
@@ -834,13 +834,13 @@ Edit the file directly. Rules are loaded on daemon start or `rules reload`.
 
 ```bash
 # Template rule
-moltbot-harness rules add --template protect_path --path "/etc" --operations "read,write"
+openclaw-harness rules add --template protect_path --path "/etc" --operations "read,write"
 
 # Keyword rule
-moltbot-harness rules add --keyword-contains "curl,--data" --risk critical --action block
+openclaw-harness rules add --keyword-contains "curl,--data" --risk critical --action block
 
 # Keyword with any_of (OR logic)
-moltbot-harness rules add --keyword-any-of "format,mkfs,wipefs" --risk critical --action block
+openclaw-harness rules add --keyword-any-of "format,mkfs,wipefs" --risk critical --action block
 ```
 
 > **Note:** CLI-added rules are in-memory only. Add to `config/rules.yaml` to persist.
@@ -878,31 +878,31 @@ curl -X POST http://localhost:8380/api/rules \
 
 ```bash
 # List all rules (shows type, status, protection flag)
-moltbot-harness rules list
+openclaw-harness rules list
 
 # Show rule details
-moltbot-harness rules show dangerous_rm
+openclaw-harness rules show dangerous_rm
 
 # Enable/disable
-moltbot-harness rules enable dangerous_rm
-moltbot-harness rules disable dangerous_rm
+openclaw-harness rules enable dangerous_rm
+openclaw-harness rules disable dangerous_rm
 # ⚠️ Self-protection rules cannot be disabled
 
 # Reload from config file
-moltbot-harness rules reload
+openclaw-harness rules reload
 ```
 
 ### Testing Rules
 
 ```bash
 # Test a specific rule against sample input
-moltbot-harness test dangerous_rm "rm -rf /"
+openclaw-harness test dangerous_rm "rm -rf /"
 # ✅ MATCH - Risk: Critical, Action: Block
 
-moltbot-harness test ssh_key_access "cat ~/.ssh/id_rsa"
+openclaw-harness test ssh_key_access "cat ~/.ssh/id_rsa"
 # ✅ MATCH - Risk: Critical
 
-moltbot-harness test dangerous_rm "ls -la"
+openclaw-harness test dangerous_rm "ls -la"
 # ❌ NO MATCH
 ```
 
@@ -916,13 +916,13 @@ MoltBot Harness patches Clawdbot's `bash-tools.exec.js` to wire up `before_tool_
 
 ```bash
 # Check if already patched
-moltbot-harness patch clawdbot --check
+openclaw-harness patch clawdbot --check
 
 # Apply patch (backs up original as .orig)
-moltbot-harness patch clawdbot
+openclaw-harness patch clawdbot
 
 # Revert patch (restores original)
-moltbot-harness patch clawdbot --revert
+openclaw-harness patch clawdbot --revert
 ```
 
 After patching, **restart the Clawdbot gateway** (a full restart, not just SIGUSR1):
@@ -940,7 +940,7 @@ The harness-guard plugin is configured in `clawdbot.json`:
 {
   "plugins": {
     "load": {
-      "paths": ["/path/to/moltbot-harness/clawdbot-plugin"]
+      "paths": ["/path/to/openclaw-harness/clawdbot-plugin"]
     },
     "entries": {
       "harness-guard": {
@@ -994,9 +994,9 @@ api.registerHook("before_tool_call", handler);
 MoltBot Harness supports **two environment variable naming conventions** (both work):
 
 ```bash
-# Option 1: MOLTBOT_HARNESS_* prefix
-export MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
-export MOLTBOT_HARNESS_TELEGRAM_CHAT_ID="987654321"
+# Option 1: OPENCLAW_HARNESS_* prefix
+export OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
+export OPENCLAW_HARNESS_TELEGRAM_CHAT_ID="987654321"
 
 # Option 2: SAFEBOT_* prefix
 export SAFEBOT_TELEGRAM_BOT_TOKEN="123456:ABC-DEF..."
@@ -1046,7 +1046,7 @@ The harness-guard plugin also sends Telegram alerts independently. Configure in 
 
 ```bash
 # Terminal 1: Backend daemon (provides API on port 8380)
-moltbot-harness start --foreground
+openclaw-harness start --foreground
 
 # Terminal 2: Frontend dev server
 cd ui
@@ -1074,7 +1074,7 @@ For agents that don't support plugin hooks, MoltBot Harness can act as a transpa
 
 ```bash
 # Start proxy (intercepts tool_use in API responses)
-moltbot-harness proxy start --mode enforce
+openclaw-harness proxy start --mode enforce
 
 # Point your agent at the proxy
 export ANTHROPIC_BASE_URL=http://127.0.0.1:9090
@@ -1128,7 +1128,7 @@ Base URL: `http://localhost:8380`
 ## 🖥️ CLI Reference
 
 ```
-moltbot-harness [OPTIONS] <COMMAND>
+openclaw-harness [OPTIONS] <COMMAND>
 
 Commands:
   start    Start the daemon (web API + log collector)
@@ -1151,36 +1151,36 @@ Options:
 
 ```bash
 # List all rules (type, status, protection)
-moltbot-harness rules list
+openclaw-harness rules list
 
 # Show rule or template details
-moltbot-harness rules show <name>
+openclaw-harness rules show <name>
 
 # Enable/disable rules
-moltbot-harness rules enable <name>
-moltbot-harness rules disable <name>
+openclaw-harness rules enable <name>
+openclaw-harness rules disable <name>
 
 # Reload rules from config/rules.yaml
-moltbot-harness rules reload
+openclaw-harness rules reload
 
 # List all 25 templates with descriptions
-moltbot-harness rules templates
+openclaw-harness rules templates
 
 # Add template rule
-moltbot-harness rules add --template <template> [--name <name>] [--path <path>] [--operations <ops>] [--commands <cmds>] [--risk <level>] [--action <action>]
+openclaw-harness rules add --template <template> [--name <name>] [--path <path>] [--operations <ops>] [--commands <cmds>] [--risk <level>] [--action <action>]
 
 # Add keyword rule
-moltbot-harness rules add [--name <name>] --keyword-contains <csv> [--risk <level>] [--action <action>]
-moltbot-harness rules add [--name <name>] --keyword-any-of <csv> [--risk <level>] [--action <action>]
-moltbot-harness rules add [--name <name>] --keyword-starts-with <csv> [--risk <level>] [--action <action>]
+openclaw-harness rules add [--name <name>] --keyword-contains <csv> [--risk <level>] [--action <action>]
+openclaw-harness rules add [--name <name>] --keyword-any-of <csv> [--risk <level>] [--action <action>]
+openclaw-harness rules add [--name <name>] --keyword-starts-with <csv> [--risk <level>] [--action <action>]
 ```
 
 ### Patch Commands
 
 ```bash
-moltbot-harness patch clawdbot            # Apply patch
-moltbot-harness patch clawdbot --check    # Check status
-moltbot-harness patch clawdbot --revert   # Revert patch
+openclaw-harness patch clawdbot            # Apply patch
+openclaw-harness patch clawdbot --check    # Check status
+openclaw-harness patch clawdbot --revert   # Revert patch
 ```
 
 ---
@@ -1188,7 +1188,7 @@ moltbot-harness patch clawdbot --revert   # Revert patch
 ## 📁 Project Structure
 
 ```
-moltbot-harness/
+openclaw-harness/
 ├── src/
 │   ├── main.rs              # CLI entry (clap)
 │   ├── rules/
@@ -1223,7 +1223,7 @@ moltbot-harness/
 
 1. **Check patch status:**
    ```bash
-   moltbot-harness patch clawdbot --check
+   openclaw-harness patch clawdbot --check
    ```
 
 2. **Check plugin is loaded:** Look for `[harness-guard] Registering before_tool_call hook via api.on()` in Clawdbot gateway logs.
@@ -1285,7 +1285,7 @@ The harness-guard plugin caches rules for 30 seconds. After adding rules via the
 ### ✅ Completed
 
 - [x] Pre-execution blocking via `before_tool_call` hook
-- [x] Auto-patcher for Clawdbot (`moltbot-harness patch clawdbot`)
+- [x] Auto-patcher for Clawdbot (`openclaw-harness patch clawdbot`)
 - [x] Clawdbot harness-guard plugin with rule caching
 - [x] API Proxy with tool_use inspection (JSON + SSE)
 - [x] **3 Rule Types** — Regex, Keyword, Template
@@ -1293,7 +1293,7 @@ The harness-guard plugin caches rules for 30 seconds. After adding rules via the
 - [x] **8 Self-Protection Rules** (hardcoded, tamper-proof)
 - [x] 35 built-in security rules (4 severity tiers)
 - [x] Enforce mode (block) and Monitor mode (log only)
-- [x] Telegram/Slack/Discord alerts (dual env var naming: `MOLTBOT_HARNESS_*` / `SAFEBOT_*`)
+- [x] Telegram/Slack/Discord alerts (dual env var naming: `OPENCLAW_HARNESS_*` / `SAFEBOT_*`)
 - [x] Web Dashboard with live event streaming
 - [x] SQLite event storage
 - [x] Custom rule support (YAML + REST API + CLI)

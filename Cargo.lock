@@ -1233,43 +1233,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "moltbot-harness"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-stream",
- "async-trait",
- "axum",
- "bytes",
- "chrono",
- "clap",
- "config",
- "dirs",
- "futures-util",
- "glob",
- "libc",
- "notify",
- "regex",
- "reqwest",
- "rusqlite",
- "scopeguard",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha2",
- "tempfile",
- "thiserror",
- "tokio",
- "tokio-test",
- "tokio-tungstenite 0.21.0",
- "tower 0.4.13",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "native-tls"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1344,6 +1307,43 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "openclaw-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "axum",
+ "bytes",
+ "chrono",
+ "clap",
+ "config",
+ "dirs",
+ "futures-util",
+ "glob",
+ "libc",
+ "notify",
+ "regex",
+ "reqwest",
+ "rusqlite",
+ "scopeguard",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "tokio-tungstenite 0.21.0",
+ "tower 0.4.13",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
 
 [[package]]
 name = "openssl"

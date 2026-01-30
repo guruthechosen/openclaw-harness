@@ -1,6 +1,6 @@
 //! MoltBot Harness - AI Agent Monitoring Daemon
 //!
-//! Monitors AI agents (Moltbot, Claude Code, Cursor) for risky actions
+//! Monitors AI agents (OpenClaw, Claude Code, Cursor) for risky actions
 //! and alerts/blocks based on configurable rules.
 
 use clap::{Parser, Subcommand};
@@ -8,13 +8,13 @@ use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 // Re-export from library
-pub use moltbot_harness::*;
+pub use openclaw_harness::*;
 
 mod cli;
 
 /// MoltBot Harness - AI Agent Security Monitor
 #[derive(Parser)]
-#[command(name = "moltbot-harness")]
+#[command(name = "openclaw-harness")]
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// Enable verbose logging
@@ -46,7 +46,7 @@ enum Commands {
         #[arg(short, long, default_value = "20")]
         tail: usize,
 
-        /// Filter by agent (moltbot, claude, cursor)
+        /// Filter by agent (openclaw, claude, cursor)
         #[arg(short, long)]
         agent: Option<String>,
 

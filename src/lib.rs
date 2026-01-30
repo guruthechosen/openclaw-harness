@@ -21,7 +21,7 @@ pub struct AgentAction {
     pub id: String,
     /// Timestamp of the action
     pub timestamp: DateTime<Utc>,
-    /// Source agent (moltbot, claude_code, cursor)
+    /// Source agent (openclaw, claude_code, cursor)
     pub agent: AgentType,
     /// Type of action
     pub action_type: ActionType,
@@ -39,7 +39,7 @@ pub struct AgentAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentType {
-    Moltbot,
+    OpenClaw,
     ClaudeCode,
     Cursor,
     Ralph,
@@ -49,7 +49,7 @@ pub enum AgentType {
 impl std::fmt::Display for AgentType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AgentType::Moltbot => write!(f, "moltbot"),
+            AgentType::OpenClaw => write!(f, "openclaw"),
             AgentType::ClaudeCode => write!(f, "claude_code"),
             AgentType::Cursor => write!(f, "cursor"),
             AgentType::Ralph => write!(f, "ralph"),
@@ -165,7 +165,7 @@ pub struct Config {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectorConfig {
-    pub moltbot: bool,
+    pub openclaw: bool,
     pub claude_code: bool,
     pub cursor: bool,
 }
@@ -197,7 +197,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             collectors: CollectorConfig {
-                moltbot: true,
+                openclaw: true,
                 claude_code: true,
                 cursor: false,
             },
@@ -206,7 +206,7 @@ impl Default for Config {
                 slack: None,
                 discord: None,
             },
-            db_path: "~/.moltbot-harness/moltbot-harness.db".to_string(),
+            db_path: "~/.openclaw-harness/openclaw-harness.db".to_string(),
             log_retention_days: 30,
         }
     }

@@ -87,7 +87,7 @@ mod tests {
         let action = AgentAction {
             id: "test".to_string(),
             timestamp: Utc::now(),
-            agent: AgentType::Moltbot,
+            agent: AgentType::OpenClaw,
             action_type: ActionType::Exec,
             content: "ls -la".to_string(),
             target: None,

@@ -1,10 +1,10 @@
 //! Rules management commands
 
-use moltbot_harness::rules::{
+use openclaw_harness::rules::{
     default_rules, all_templates, self_protection_rules, Rule, KeywordMatch, TemplateParams, RuleAction, MatchType,
     load_rules_from_file,
 };
-use moltbot_harness::RiskLevel;
+use openclaw_harness::RiskLevel;
 
 pub async fn list() -> anyhow::Result<()> {
     println!("📜 Configured Rules");
@@ -64,8 +64,8 @@ pub async fn templates() -> anyhow::Result<()> {
 
     println!("Total: {} templates", templates.len());
     println!("\nUsage:");
-    println!("  moltbot-harness rules add --template protect_path --path \"/etc\" --operations \"read,write\"");
-    println!("  moltbot-harness rules add --keyword-contains \"rm -rf\" --risk critical --action block");
+    println!("  openclaw-harness rules add --template protect_path --path \"/etc\" --operations \"read,write\"");
+    println!("  openclaw-harness rules add --keyword-contains \"rm -rf\" --risk critical --action block");
     Ok(())
 }
 

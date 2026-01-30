@@ -1,7 +1,7 @@
 //! Test command - test a rule against sample input
 
-use moltbot_harness::rules::{default_rules, load_rules_from_file};
-use moltbot_harness::{AgentAction, AgentType, ActionType};
+use openclaw_harness::rules::{default_rules, load_rules_from_file};
+use openclaw_harness::{AgentAction, AgentType, ActionType};
 
 pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
     println!("Testing rule '{}' against input: {}", rule_name, input);
@@ -25,7 +25,7 @@ pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
         let action = AgentAction {
             id: "test".to_string(),
             timestamp: chrono::Utc::now(),
-            agent: AgentType::Moltbot,
+            agent: AgentType::OpenClaw,
             action_type: ActionType::Exec,
             content: input.to_string(),
             target: None,
@@ -50,9 +50,9 @@ pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
         };
         for rule in all_rules {
             let type_tag = match rule.match_type {
-                moltbot_harness::rules::MatchType::Regex => "regex",
-                moltbot_harness::rules::MatchType::Keyword => "keyword",
-                moltbot_harness::rules::MatchType::Template => "template",
+                openclaw_harness::rules::MatchType::Regex => "regex",
+                openclaw_harness::rules::MatchType::Keyword => "keyword",
+                openclaw_harness::rules::MatchType::Template => "template",
             };
             println!("  - {} [{}]", rule.name, type_tag);
         }

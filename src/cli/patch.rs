@@ -1,4 +1,4 @@
-//! `moltbot-harness patch` subcommand
+//! `openclaw-harness patch` subcommand
 
 use anyhow::{bail, Result};
 use tracing::info;

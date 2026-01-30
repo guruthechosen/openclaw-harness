@@ -1099,9 +1099,9 @@ pub fn self_protection_rules() -> Vec<Rule> {
                 any_of: vec![
                     "config/rules.yaml".to_string(),
                     "config/safebot.yaml".to_string(),
-                    "config/moltbot-harness.yaml".to_string(),
-                    "moltbot-harness/config".to_string(),
-                    ".moltbot-harness/config".to_string(),
+                    "config/openclaw-harness.yaml".to_string(),
+                    "openclaw-harness/config".to_string(),
+                    ".openclaw-harness/config".to_string(),
                     "alerts.json".to_string(),
                 ],
                 ..Default::default()
@@ -1118,7 +1118,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
             name: "self_protect_source".to_string(),
             description: "🔒 SELF-PROTECTION: Block modification of MoltBot Harness source code".to_string(),
             match_type: MatchType::Regex,
-            pattern: r#"(safebot|moltbot-harness)/src/.*\.(rs|toml)"#.to_string(),
+            pattern: r#"(safebot|openclaw-harness)/src/.*\.(rs|toml)"#.to_string(),
             applies_to: vec![ActionType::FileWrite, ActionType::Exec],
             risk_level: RiskLevel::Critical,
             action: RuleAction::Block,
@@ -1131,7 +1131,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
             name: "self_protect_process".to_string(),
             description: "🔒 SELF-PROTECTION: Block killing MoltBot Harness process".to_string(),
             match_type: MatchType::Regex,
-            pattern: r#"(kill|pkill|killall)\s+.*(moltbot|safebot|harness)"#.to_string(),
+            pattern: r#"(kill|pkill|killall)\s+.*(openclaw|safebot|harness)"#.to_string(),
             applies_to: vec![ActionType::Exec],
             risk_level: RiskLevel::Critical,
             action: RuleAction::Block,
@@ -1146,7 +1146,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
             match_type: MatchType::Keyword,
             keyword: Some(KeywordMatch {
                 any_of: vec![
-                    "moltbot-harness stop".to_string(),
+                    "openclaw-harness stop".to_string(),
                     "safebot stop".to_string(),
                 ],
                 ..Default::default()
@@ -1183,7 +1183,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
             name: "self_protect_binary".to_string(),
             description: "🔒 SELF-PROTECTION: Block modification of MoltBot Harness binary".to_string(),
             match_type: MatchType::Regex,
-            pattern: r#"(safebot|moltbot-harness)/target/(release|debug)/"#.to_string(),
+            pattern: r#"(safebot|openclaw-harness)/target/(release|debug)/"#.to_string(),
             applies_to: vec![ActionType::FileWrite, ActionType::Exec],
             risk_level: RiskLevel::Critical,
             action: RuleAction::Block,
@@ -1261,7 +1261,7 @@ mod tests {
         AgentAction {
             id: "test".to_string(),
             timestamp: Utc::now(),
-            agent: AgentType::Moltbot,
+            agent: AgentType::OpenClaw,
             action_type: ActionType::Exec,
             content: content.to_string(),
             target: None,

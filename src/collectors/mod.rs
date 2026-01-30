@@ -5,7 +5,7 @@
 //! 2. Parsing log entries into `AgentAction`
 //! 3. Emitting actions to the analyzer
 
-pub mod moltbot;
+pub mod openclaw;
 pub mod claude_code;
 pub mod cursor;
 
@@ -33,8 +33,8 @@ pub trait Collector: Send + Sync {
 pub fn create_collectors(config: &CollectorConfig) -> Vec<Box<dyn Collector>> {
     let mut collectors: Vec<Box<dyn Collector>> = Vec::new();
 
-    if config.moltbot {
-        collectors.push(Box::new(moltbot::MoltbotCollector::new()));
+    if config.openclaw {
+        collectors.push(Box::new(openclaw::OpenclawCollector::new()));
     }
 
     if config.claude_code {

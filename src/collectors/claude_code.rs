@@ -37,7 +37,7 @@ impl super::Collector for ClaudeCodeCollector {
             return Ok(());
         }
 
-        // TODO: Implement log watching similar to Moltbot
+        // TODO: Implement log watching similar to OpenClaw
         // Claude Code logs are in JSONL format with tool_use events
         
         Ok(())

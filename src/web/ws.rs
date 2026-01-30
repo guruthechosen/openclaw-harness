@@ -30,7 +30,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>) {
     // Send initial status
     let status = WebEvent::Status {
         connected: true,
-        monitoring: vec!["moltbot".to_string()],
+        monitoring: vec!["openclaw".to_string()],
     };
     if let Ok(json) = serde_json::to_string(&status) {
         let _ = sender.send(Message::Text(json)).await;

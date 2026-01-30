@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const PATCH_MARKER: &str = "// MOLTBOT_HARNESS_PATCH_v1";
+const PATCH_MARKER: &str = "// OPENCLAW_HARNESS_PATCH_v1";
 const BACKUP_EXT: &str = ".orig";
 
 /// The anchor text we search for in bash-tools.exec.js to find the injection point.
@@ -22,7 +22,7 @@ const ANCHOR_TEXT: &str = r#"if (!params.command) {
 /// 2. Calls runBeforeToolCall with the exec params
 /// 3. Blocks execution if hook returns { block: true }
 const PATCH_CODE: &str = r#"
-            // MOLTBOT_HARNESS_PATCH_v1 — before_tool_call hook for exec
+            // OPENCLAW_HARNESS_PATCH_v1 — before_tool_call hook for exec
             {
                 const { getGlobalHookRunner } = await import("../plugins/hook-runner-global.js");
                 const _hookRunner = getGlobalHookRunner();
@@ -39,7 +39,7 @@ const PATCH_CODE: &str = r#"
                     }
                 }
             }
-            // END MOLTBOT_HARNESS_PATCH_v1"#;
+            // END OPENCLAW_HARNESS_PATCH_v1"#;
 
 /// Locate the Clawdbot dist directory by resolving `which clawdbot`.
 pub fn find_clawdbot_dist() -> Result<PathBuf> {

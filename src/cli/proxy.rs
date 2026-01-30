@@ -1,8 +1,8 @@
 //! CLI handler for the proxy subcommand
 
-use moltbot_harness::proxy::config::{ProxyConfig, ProxyMode};
-use moltbot_harness::proxy::start_proxy;
-use moltbot_harness::{AlertConfig, TelegramConfig};
+use openclaw_harness::proxy::config::{ProxyConfig, ProxyMode};
+use openclaw_harness::proxy::start_proxy;
+use openclaw_harness::{AlertConfig, TelegramConfig};
 use tracing::info;
 
 pub async fn start(port: Option<u16>, target: Option<String>, mode: Option<String>) -> anyhow::Result<()> {
@@ -27,8 +27,8 @@ pub async fn start(port: Option<u16>, target: Option<String>, mode: Option<Strin
 
     // Try to load Telegram config from environment
     let alert_config = match (
-        std::env::var("MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN"),
-        std::env::var("MOLTBOT_HARNESS_TELEGRAM_CHAT_ID"),
+        std::env::var("OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN"),
+        std::env::var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID"),
     ) {
         (Ok(token), Ok(chat_id)) => {
             info!("Telegram alerts enabled");
@@ -42,7 +42,7 @@ pub async fn start(port: Option<u16>, target: Option<String>, mode: Option<Strin
             })
         }
         _ => {
-            info!("Telegram alerts not configured (set MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN and MOLTBOT_HARNESS_TELEGRAM_CHAT_ID)");
+            info!("Telegram alerts not configured (set OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN and OPENCLAW_HARNESS_TELEGRAM_CHAT_ID)");
             None
         }
     };

@@ -1,19 +1,19 @@
 //! Start command - launches the MoltBot Harness daemon
 
-use moltbot_harness::collectors::{Collector, moltbot::MoltbotCollector};
-use moltbot_harness::analyzer::Analyzer;
-use moltbot_harness::enforcer::alerter::Alerter;
-use moltbot_harness::rules::{default_rules, load_rules_from_file};
-use moltbot_harness::web::{self, WebEvent};
-use moltbot_harness::{AgentAction, RiskLevel, Recommendation, AlertConfig, TelegramConfig};
+use openclaw_harness::collectors::{Collector, openclaw::OpenclawCollector};
+use openclaw_harness::analyzer::Analyzer;
+use openclaw_harness::enforcer::alerter::Alerter;
+use openclaw_harness::rules::{default_rules, load_rules_from_file};
+use openclaw_harness::web::{self, WebEvent};
+use openclaw_harness::{AgentAction, RiskLevel, Recommendation, AlertConfig, TelegramConfig};
 use std::fs;
 use std::process::Command;
 use tokio::sync::{mpsc, broadcast};
 use sha2::{Sha256, Digest};
 use tracing::{info, warn, error};
 
-const PID_FILE: &str = "/tmp/moltbot-harness.pid";
-const CONFIG_HASH_FILE: &str = "/tmp/moltbot-harness-config.hash";
+const PID_FILE: &str = "/tmp/openclaw-harness.pid";
+const CONFIG_HASH_FILE: &str = "/tmp/openclaw-harness-config.hash";
 
 /// Compute SHA256 hash of a file
 fn compute_config_hash(path: &std::path::Path) -> Option<String> {
@@ -69,10 +69,10 @@ async fn daemonize() -> anyhow::Result<()> {
 
 /// Load Telegram config from environment variables
 fn load_telegram_config() -> Option<TelegramConfig> {
-    let bot_token = std::env::var("MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN")
+    let bot_token = std::env::var("OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN")
         .or_else(|_| std::env::var("SAFEBOT_TELEGRAM_BOT_TOKEN"))
         .ok()?;
-    let chat_id = std::env::var("MOLTBOT_HARNESS_TELEGRAM_CHAT_ID")
+    let chat_id = std::env::var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID")
         .or_else(|_| std::env::var("SAFEBOT_TELEGRAM_CHAT_ID"))
         .ok()?;
     
@@ -114,7 +114,7 @@ async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
     
     // Method 2: Write a block marker that Clawdbot could check
     // (Would require Clawdbot integration)
-    let block_file = "/tmp/moltbot-harness_block";
+    let block_file = "/tmp/openclaw-harness_block";
     let block_info = serde_json::json!({
         "blocked_at": chrono::Utc::now().to_rfc3339(),
         "action_id": action.id,
@@ -175,12 +175,12 @@ async fn run_daemon() -> anyhow::Result<()> {
     let web_tx_clone = web_tx.clone();
     
     // Start web server
-    let web_port = std::env::var("MOLTBOT_HARNESS_WEB_PORT")
+    let web_port = std::env::var("OPENCLAW_HARNESS_WEB_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8380);
     
-    let db_path = "~/.moltbot-harness/moltbot-harness.db".to_string();
+    let db_path = "~/.openclaw-harness/openclaw-harness.db".to_string();
     tokio::spawn(async move {
         if let Err(e) = web::start_server(web_port, web_tx_clone, db_path, None).await {
             error!("Web server error: {}", e);
@@ -200,25 +200,25 @@ async fn run_daemon() -> anyhow::Result<()> {
             discord: None,
         }))
     } else {
-        warn!("⚠️  No Telegram config found (set MOLTBOT_HARNESS_TELEGRAM_BOT_TOKEN and MOLTBOT_HARNESS_TELEGRAM_CHAT_ID)");
+        warn!("⚠️  No Telegram config found (set OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN and OPENCLAW_HARNESS_TELEGRAM_CHAT_ID)");
         None
     };
     
     // Create channel for actions
     let (tx, mut rx) = mpsc::channel::<AgentAction>(100);
     
-    // Start Moltbot collector
-    let collector = MoltbotCollector::new();
+    // Start OpenClaw collector
+    let collector = OpenclawCollector::new();
     if collector.is_available() {
-        info!("🦞 Moltbot collector available");
+        info!("🦞 OpenClaw collector available");
         let tx_clone = tx.clone();
         tokio::spawn(async move {
             if let Err(e) = collector.start(tx_clone).await {
-                error!("Moltbot collector error: {}", e);
+                error!("OpenClaw collector error: {}", e);
             }
         });
     } else {
-        warn!("⚠️  Moltbot sessions directory not found");
+        warn!("⚠️  OpenClaw sessions directory not found");
     }
     
     info!("✅ MoltBot Harness daemon started successfully");
@@ -321,14 +321,14 @@ async fn run_daemon() -> anyhow::Result<()> {
                                     let tamper_action = AgentAction {
                                         id: format!("tamper-{}", chrono::Utc::now().timestamp()),
                                         timestamp: chrono::Utc::now(),
-                                        agent: moltbot_harness::AgentType::Unknown,
-                                        action_type: moltbot_harness::ActionType::FileWrite,
+                                        agent: openclaw_harness::AgentType::Unknown,
+                                        action_type: openclaw_harness::ActionType::FileWrite,
                                         content: "CONFIG TAMPERING: rules.yaml was modified externally".to_string(),
                                         target: Some("config/rules.yaml".to_string()),
                                         session_id: None,
                                         metadata: None,
                                     };
-                                    let tamper_result = moltbot_harness::AnalysisResult {
+                                    let tamper_result = openclaw_harness::AnalysisResult {
                                         action: tamper_action,
                                         risk_level: RiskLevel::Critical,
                                         matched_rules: vec!["CONFIG_TAMPERING".to_string()],

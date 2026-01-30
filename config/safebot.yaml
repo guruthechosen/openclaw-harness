@@ -1,10 +1,10 @@
 # MoltBot Harness Configuration
 # 
-# Copy this file to ~/.moltbot-harness/config.yaml and customize
+# Copy this file to ~/.openclaw-harness/config.yaml and customize
 
 # Collectors to enable
 collectors:
-  moltbot: true
+  openclaw: true
   claude_code: true
   cursor: false
 
@@ -13,8 +13,8 @@ alerts:
   # Telegram notifications
   telegram:
     enabled: true
-    bot_token: "YOUR_BOT_TOKEN"
-    chat_id: "YOUR_CHAT_ID"
+    bot_token: "8518089914:AAED1q-sEvNwGvY7ga3xBYHnGQ2axCMQPvw"
+    chat_id: "8508048427"
   
   # Slack notifications
   slack:
@@ -28,13 +28,13 @@ alerts:
 
 # Database settings
 database:
-  path: "~/.moltbot-harness/moltbot-harness.db"
+  path: "~/.openclaw-harness/openclaw-harness.db"
   log_retention_days: 30
 
 # Rule engine settings
 rules:
   # Path to custom rules file
-  custom_rules_path: "~/.moltbot-harness/rules.yaml"
+  custom_rules_path: "~/.openclaw-harness/rules.yaml"
   
   # Enable AI-assisted risk analysis (requires local LLM)
   ai_assist: false
@@ -50,4 +50,4 @@ performance:
 # Logging
 logging:
   level: "info"  # debug, info, warn, error
-  file: "~/.moltbot-harness/moltbot-harness.log"
+  file: "~/.openclaw-harness/openclaw-harness.log"

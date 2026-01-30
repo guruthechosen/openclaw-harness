@@ -2,9 +2,9 @@
 name = "moltbot-harness"
 version = "0.1.0"
 edition = "2021"
-authors = ["Sean <sean@example.com>"]
+authors = ["Sean <sparkishy@gmail.com>"]
 description = "Security harness for AI coding agents"
-license = "MIT"
+license = "BSL-1.1"
 repository = "https://github.com/clawdbot/moltbot-harness"
 keywords = ["ai", "security", "monitoring", "moltbot", "claude"]
 categories = ["command-line-utilities", "development-tools"]

@@ -54,8 +54,8 @@ pub async fn status() -> anyhow::Result<()> {
     // Simple status check — try to connect to the proxy port
     let client = reqwest::Client::new();
     match client.get("http://127.0.0.1:9090/health").send().await {
-        Ok(_) => println!("✅ MoltBot Harness proxy is running on 127.0.0.1:9090"),
-        Err(_) => println!("❌ MoltBot Harness proxy is not running (or not on default port 9090)"),
+        Ok(_) => println!("✅ OpenClaw Harness proxy is running on 127.0.0.1:9090"),
+        Err(_) => println!("❌ OpenClaw Harness proxy is not running (or not on default port 9090)"),
     }
     Ok(())
 }

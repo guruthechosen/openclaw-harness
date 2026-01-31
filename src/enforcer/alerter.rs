@@ -68,7 +68,7 @@ impl Alerter {
 
     fn format_message(&self, result: &AnalysisResult) -> String {
         format!(
-            "🛡️ *MoltBot Harness Alert*\n\n\
+            "🛡️ *OpenClaw Harness Alert*\n\n\
             *Risk Level:* {}\n\
             *Agent:* {}\n\
             *Action:* {:?}\n\

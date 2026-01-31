@@ -218,7 +218,7 @@ impl StreamInterceptor {
         // Generate replacement events: drop all buffered tool_call events, emit content message
         let block_msgs: Vec<String> = self.intercepts.iter()
             .filter(|i| matches!(i.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk))
-            .map(|i| format!("🛡️ MoltBot Harness blocked this action: [{}] {} (rule: {})", i.tool_name, i.reason, i.rule_name))
+            .map(|i| format!("🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})", i.tool_name, i.reason, i.rule_name))
             .collect();
 
         let replacement = serde_json::json!({
@@ -279,7 +279,7 @@ impl StreamInterceptor {
                     if should_block && self.enforce {
                         has_blocked = true;
                         let block_msg = format!(
-                            "🛡️ MoltBot Harness blocked this action: [{}] {} (rule: {})",
+                            "🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})",
                             result.tool_name, result.reason, result.rule_name
                         );
                         modified.as_object_mut().unwrap()
@@ -378,7 +378,7 @@ impl StreamInterceptor {
             if should_block && self.enforce {
                 let intercept = self.intercepts.last().unwrap();
                 let block_msg = format!(
-                    "🛡️ MoltBot Harness blocked this action: [{}] {} (rule: {})",
+                    "🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})",
                     intercept.tool_name, intercept.reason, intercept.rule_name
                 );
 
@@ -577,7 +577,7 @@ mod tests {
         // Check delta has blocked message
         let delta_data: serde_json::Value = serde_json::from_str(&output[2].data).unwrap();
         let text = delta_data.pointer("/delta/text").unwrap().as_str().unwrap();
-        assert!(text.contains("MoltBot Harness blocked"));
+        assert!(text.contains("OpenClaw Harness blocked"));
         assert!(!interceptor.intercepts.is_empty());
     }
 
@@ -670,7 +670,7 @@ mod tests {
         // First event (role) passes through, tool_call events buffered then replaced
         assert!(!interceptor.intercepts.is_empty());
         // Should have replacement content events instead of tool_call events
-        let has_blocked = output.iter().any(|e| e.data.contains("MoltBot Harness blocked"));
+        let has_blocked = output.iter().any(|e| e.data.contains("OpenClaw Harness blocked"));
         assert!(has_blocked, "Should contain block message, got: {:?}", output.iter().map(|e| &e.data).collect::<Vec<_>>());
     }
 
@@ -693,7 +693,7 @@ mod tests {
 
         assert!(interceptor.intercepts.is_empty());
         // All buffered events flushed
-        let has_blocked = output.iter().any(|e| e.data.contains("MoltBot Harness blocked"));
+        let has_blocked = output.iter().any(|e| e.data.contains("OpenClaw Harness blocked"));
         assert!(!has_blocked);
     }
 
@@ -708,7 +708,7 @@ mod tests {
 
         let output = interceptor.process_event(event);
         assert!(!interceptor.intercepts.is_empty());
-        assert!(output[0].data.contains("MoltBot Harness blocked"));
+        assert!(output[0].data.contains("OpenClaw Harness blocked"));
     }
 
     #[test]
@@ -720,7 +720,7 @@ mod tests {
 
         let output = interceptor.process_event(event);
         assert!(interceptor.intercepts.is_empty());
-        assert!(!output[0].data.contains("MoltBot Harness blocked"));
+        assert!(!output[0].data.contains("OpenClaw Harness blocked"));
     }
 
     #[test]

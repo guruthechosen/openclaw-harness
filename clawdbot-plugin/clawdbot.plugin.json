@@ -1,7 +1,7 @@
 {
   "id": "harness-guard",
-  "name": "MoltBot Harness Guard",
-  "description": "Intercepts exec tool calls and blocks dangerous commands based on MoltBot Harness rules",
+  "name": "OpenClaw Harness Guard",
+  "description": "Intercepts exec tool calls and blocks dangerous commands based on OpenClaw Harness rules",
   "version": "0.1.0",
   "configSchema": {
     "type": "object",
@@ -37,7 +37,7 @@
   },
   "uiHints": {
     "enabled": { "label": "Enable Guard" },
-    "apiUrl": { "label": "MoltBot Harness API URL", "placeholder": "http://localhost:8380" },
+    "apiUrl": { "label": "OpenClaw Harness API URL", "placeholder": "http://localhost:8380" },
     "blockDangerous": { "label": "Block Dangerous Commands" },
     "alertOnly": { "label": "Alert Only (no blocking)" },
     "cacheTtlSeconds": { "label": "Rule Cache TTL (seconds)", "placeholder": "30" },

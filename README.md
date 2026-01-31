@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🦞 MoltBot Harness
+# 🦞 OpenClaw Harness
 
 **Security harness for AI coding agents — inspect, block, and audit every tool call before it executes.**
 
@@ -14,9 +14,9 @@
 
 ---
 
-## What is MoltBot Harness?
+## What is OpenClaw Harness?
 
-MoltBot Harness is a security layer for AI coding agents. It intercepts dangerous tool calls — destructive shell commands, SSH key access, API key exposure — and **blocks them before they execute**.
+OpenClaw Harness is a security layer for AI coding agents. It intercepts dangerous tool calls — destructive shell commands, SSH key access, API key exposure — and **blocks them before they execute**.
 
 It works in two complementary ways:
 
@@ -39,7 +39,7 @@ Think of it as a firewall for AI agents.
 
 ```
 ┌─────────────────┐         ┌──────────────────────────────┐
-│   AI Agent      │         │     MoltBot Harness           │
+│   AI Agent      │         │     OpenClaw Harness           │
 │                 │         │                              │
 │  Clawdbot       │─────────│  ┌─────────┐  ┌──────────┐  │
 │  Claude Code    │         │  │ Plugin   │  │  Daemon  │  │
@@ -92,9 +92,9 @@ Think of it as a firewall for AI agents.
 
 ### ⚠️ Clawdbot Version Compatibility
 
-MoltBot Harness patches Clawdbot's `bash-tools.exec.js` to inject the `before_tool_call` hook. This patch depends on the internal code structure of Clawdbot, which may change between versions.
+OpenClaw Harness patches Clawdbot's `bash-tools.exec.js` to inject the `before_tool_call` hook. This patch depends on the internal code structure of Clawdbot, which may change between versions.
 
-| MoltBot Harness Version | Compatible Clawdbot Versions | Patch Target | Status |
+| OpenClaw Harness Version | Compatible Clawdbot Versions | Patch Target | Status |
 |-----------------|------------------------------|--------------|--------|
 | 0.1.x | **2026.1.24-3** | `bash-tools.exec.js` (exec tool) | ✅ Tested & Verified |
 
@@ -126,10 +126,10 @@ Clawdbot version may be incompatible.
 **After a Clawdbot update:**
 1. Run `openclaw-harness patch clawdbot --check` to verify patch status
 2. If the patch was removed (Clawdbot updated its files), re-apply: `openclaw-harness patch clawdbot`
-3. If the patch fails, check for a MoltBot Harness update that supports the new Clawdbot version
-4. File an issue at the MoltBot Harness repo if no compatible version is available
+3. If the patch fails, check for a OpenClaw Harness update that supports the new Clawdbot version
+4. File an issue at the OpenClaw Harness repo if no compatible version is available
 
-> **Note:** MoltBot Harness fallback rules and file permission protections work **regardless of the patch status**. The patch only affects exec-level blocking. Write/Edit protection relies on file permissions (`chmod 444`), not the Clawdbot patch.
+> **Note:** OpenClaw Harness fallback rules and file permission protections work **regardless of the patch status**. The patch only affects exec-level blocking. Write/Edit protection relies on file permissions (`chmod 444`), not the Clawdbot patch.
 
 ### 1. Build
 
@@ -158,7 +158,7 @@ clawdbot gateway start
 
 ### 3. Install the Plugin
 
-The harness-guard plugin connects Clawdbot's hook system to MoltBot Harness rules.
+The harness-guard plugin connects Clawdbot's hook system to OpenClaw Harness rules.
 
 ```bash
 # Install from the included plugin directory
@@ -173,7 +173,7 @@ clawdbot plugins install --path ./clawdbot-plugin
 ### 4. Start the Daemon
 
 ```bash
-# Start MoltBot Harness daemon (provides rule API on port 8380)
+# Start OpenClaw Harness daemon (provides rule API on port 8380)
 ./target/release/openclaw-harness start --foreground
 
 # Or run in background
@@ -208,7 +208,7 @@ That's it! Any dangerous command your AI agent tries to run will now be blocked 
 When an AI agent tries to run `rm -rf ~/Documents`:
 
 ```
-🛡️ Blocked by MoltBot Harness Guard
+🛡️ Blocked by OpenClaw Harness Guard
 Rule: dangerous_rm
 Description: Dangerous recursive delete commands
 Risk Level: Critical
@@ -257,7 +257,7 @@ launchctl load ~/Library/LaunchAgents/com.openclaw-harness.plist
 ```bash
 sudo cat > /etc/systemd/system/openclaw-harness.service << 'EOF'
 [Unit]
-Description=MoltBot Harness Security Daemon
+Description=OpenClaw Harness Security Daemon
 After=network.target
 
 [Service]
@@ -286,7 +286,7 @@ sudo systemctl enable --now openclaw-harness
 Agent wants to run "rm -rf /" 
     → Clawdbot exec tool (patched)
     → before_tool_call hook fires
-    → harness-guard plugin checks rules via MoltBot Harness API
+    → harness-guard plugin checks rules via OpenClaw Harness API
     → Rule "dangerous_rm" matches
     → Plugin returns { block: true, blockReason: "..." }
     → Clawdbot throws error — command NEVER executes
@@ -297,7 +297,7 @@ Agent wants to run "rm -rf /"
 
 ```
 Agent sends API request
-    → MoltBot Harness Proxy (port 9090) forwards to provider
+    → OpenClaw Harness Proxy (port 9090) forwards to provider
     → Provider returns response with tool_use
     → Proxy inspects tool calls against rules  
     → Dangerous calls stripped from response
@@ -308,7 +308,7 @@ Agent sends API request
 
 ## 🛡️ 3 Rule Types
 
-MoltBot Harness supports **3 rule types** for maximum flexibility. Choose based on your needs:
+OpenClaw Harness supports **3 rule types** for maximum flexibility. Choose based on your needs:
 
 | Type | Complexity | Best For | Regex Knowledge |
 |------|-----------|----------|-----------------|
@@ -691,13 +691,13 @@ openclaw-harness rules add --template block_command --commands "telnet,ftp"
 
 ## 🔒 Self-Protection
 
-> **This is MoltBot Harness's most important security feature.**
+> **This is OpenClaw Harness's most important security feature.**
 
-AI agents are smart. A sufficiently capable agent might try to **disable the security harness** to bypass restrictions. MoltBot Harness prevents this with **6 layers of defense** and **8 hardcoded self-protection rules** that cannot be removed, disabled, or overridden.
+AI agents are smart. A sufficiently capable agent might try to **disable the security harness** to bypass restrictions. OpenClaw Harness prevents this with **6 layers of defense** and **8 hardcoded self-protection rules** that cannot be removed, disabled, or overridden.
 
 ### Multi-Layer Defense
 
-MoltBot Harness uses defense-in-depth with 6 independent layers:
+OpenClaw Harness uses defense-in-depth with 6 independent layers:
 
 | Layer | Mechanism | What It Does |
 |-------|-----------|-------------|
@@ -726,10 +726,10 @@ chmod 444 config/rules.yaml
 
 | # | Rule | What It Blocks |
 |---|------|---------------|
-| 1 | `self_protect_config` | Modifying MoltBot Harness config files (`rules.yaml`, `safebot.yaml`, etc.) |
-| 2 | `self_protect_source` | Modifying MoltBot Harness source code (`.rs`, `.toml` files) |
-| 3 | `self_protect_process` | Killing the MoltBot Harness process (`kill`, `pkill`, `killall`) |
-| 4 | `self_protect_stop` | Stopping MoltBot Harness via CLI (`openclaw-harness stop`, `safebot stop`) |
+| 1 | `self_protect_config` | Modifying OpenClaw Harness config files (`rules.yaml`, `safebot.yaml`, etc.) |
+| 2 | `self_protect_source` | Modifying OpenClaw Harness source code (`.rs`, `.toml` files) |
+| 3 | `self_protect_process` | Killing the OpenClaw Harness process (`kill`, `pkill`, `killall`) |
+| 4 | `self_protect_stop` | Stopping OpenClaw Harness via CLI (`openclaw-harness stop`, `safebot stop`) |
 | 5 | `self_protect_plugin` | Modifying the harness-guard Clawdbot plugin |
 | 6 | `self_protect_binary` | Replacing the compiled binary (`target/release/`, `target/debug/`) |
 | 7 | `self_protect_api` | Using the API to delete/disable rules (`curl ... :8380 ... rules ... delete`) |
@@ -774,7 +774,7 @@ $ openclaw-harness rules enable self_protect_config
 ✅ Rule 'self_protect_config' is a self-protection rule and is always enabled.
 ```
 
-> **Only a human with direct access to the source code, a Rust compiler, and ability to replace the running binary can modify self-protection rules.** And even that is blocked if MoltBot Harness is running — `self_protect_source` and `self_protect_binary` prevent it.
+> **Only a human with direct access to the source code, a Rust compiler, and ability to replace the running binary can modify self-protection rules.** And even that is blocked if OpenClaw Harness is running — `self_protect_source` and `self_protect_binary` prevent it.
 
 ### Attack Scenarios & Defenses
 
@@ -912,7 +912,7 @@ openclaw-harness test dangerous_rm "ls -la"
 
 ### Patching
 
-MoltBot Harness patches Clawdbot's `bash-tools.exec.js` to wire up `before_tool_call` hooks.
+OpenClaw Harness patches Clawdbot's `bash-tools.exec.js` to wire up `before_tool_call` hooks.
 
 ```bash
 # Check if already patched
@@ -963,7 +963,7 @@ The harness-guard plugin is configured in `clawdbot.json`:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `enabled` | `true` | Enable/disable the guard |
-| `apiUrl` | `http://localhost:8380` | MoltBot Harness daemon API URL |
+| `apiUrl` | `http://localhost:8380` | OpenClaw Harness daemon API URL |
 | `blockDangerous` | `true` | Actually block (false = log only) |
 | `alertOnly` | `false` | Only send alerts, don't block |
 | `cacheTtlSeconds` | `30` | How long to cache rules from the API |
@@ -991,7 +991,7 @@ api.registerHook("before_tool_call", handler);
 
 ### Telegram
 
-MoltBot Harness supports **two environment variable naming conventions** (both work):
+OpenClaw Harness supports **two environment variable naming conventions** (both work):
 
 ```bash
 # Option 1: OPENCLAW_HARNESS_* prefix
@@ -1070,7 +1070,7 @@ Live updates via WebSocket (`ws://localhost:8380/ws/events`).
 
 ## 🔌 API Proxy (Optional)
 
-For agents that don't support plugin hooks, MoltBot Harness can act as a transparent API proxy.
+For agents that don't support plugin hooks, OpenClaw Harness can act as a transparent API proxy.
 
 ```bash
 # Start proxy (intercepts tool_use in API responses)
@@ -1249,7 +1249,7 @@ The `ssh_key_access` rule uses `($|[^.])` instead of lookahead (`(?!...)`) becau
 
 ### Config file load failure
 
-If `config/rules.yaml` fails to parse (syntax error, invalid YAML), MoltBot Harness falls back to the **default rules** (9 built-in regex rules + 8 self-protection rules). Check logs for the parse error and fix the YAML.
+If `config/rules.yaml` fails to parse (syntax error, invalid YAML), OpenClaw Harness falls back to the **default rules** (9 built-in regex rules + 8 self-protection rules). Check logs for the parse error and fix the YAML.
 
 ```bash
 # Verify YAML syntax

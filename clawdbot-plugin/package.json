@@ -1,7 +1,7 @@
 {
   "name": "@openclaw/harness-guard",
   "version": "0.1.0",
-  "description": "MoltBot Harness Guard — blocks dangerous exec commands based on MoltBot Harness rules",
+  "description": "OpenClaw Harness Guard — blocks dangerous exec commands based on OpenClaw Harness rules",
   "main": "index.js",
   "clawdbot": {
     "extensions": ["./index.js"]

@@ -1,4 +1,4 @@
-//! Start command - launches the MoltBot Harness daemon
+//! Start command - launches the OpenClaw Harness daemon
 
 use openclaw_harness::collectors::{Collector, openclaw::OpenclawCollector};
 use openclaw_harness::analyzer::Analyzer;
@@ -26,7 +26,7 @@ fn compute_config_hash(path: &std::path::Path) -> Option<String> {
 pub async fn run(foreground: bool) -> anyhow::Result<()> {
     // Check if already running
     if is_running() {
-        println!("⚠️  MoltBot Harness is already running!");
+        println!("⚠️  OpenClaw Harness is already running!");
         return Ok(());
     }
 
@@ -63,7 +63,7 @@ fn remove_pid() {
 }
 
 async fn daemonize() -> anyhow::Result<()> {
-    println!("🛡️  Starting MoltBot Harness daemon...");
+    println!("🛡️  Starting OpenClaw Harness daemon...");
     run_daemon().await
 }
 
@@ -118,7 +118,7 @@ async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
     let block_info = serde_json::json!({
         "blocked_at": chrono::Utc::now().to_rfc3339(),
         "action_id": action.id,
-        "reason": "MoltBot Harness security block",
+        "reason": "OpenClaw Harness security block",
     });
     fs::write(block_file, block_info.to_string())?;
     
@@ -134,7 +134,7 @@ async fn run_daemon() -> anyhow::Result<()> {
         remove_pid();
     });
 
-    info!("🛡️ MoltBot Harness daemon starting (PID: {})...", std::process::id());
+    info!("🛡️ OpenClaw Harness daemon starting (PID: {})...", std::process::id());
     
     // Load rules (config file first, fallback to defaults)
     let config_path = std::path::Path::new("config/rules.yaml");
@@ -221,7 +221,7 @@ async fn run_daemon() -> anyhow::Result<()> {
         warn!("⚠️  OpenClaw sessions directory not found");
     }
     
-    info!("✅ MoltBot Harness daemon started successfully");
+    info!("✅ OpenClaw Harness daemon started successfully");
     info!("👀 Monitoring for AI agent actions...");
     
     // Keep tx alive to prevent channel from closing

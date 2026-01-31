@@ -194,7 +194,7 @@ pub fn intercept_response(body: &[u8], rules: &[Rule], enforce: bool) -> (Vec<u8
 
 fn block_message(intercept: &InterceptResult) -> String {
     format!(
-        "🛡️ MoltBot Harness blocked this action: [{}] {} (rule: {})",
+        "🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})",
         intercept.tool_name, intercept.reason, intercept.rule_name
     )
 }
@@ -384,7 +384,7 @@ pub fn format_telegram_alert(intercept: &InterceptResult) -> String {
     };
 
     format!(
-        "{} *MoltBot Harness Proxy Blocked*\n\n\
+        "{} *OpenClaw Harness Proxy Blocked*\n\n\
         *Tool:* `{}`\n\
         *Risk:* {}\n\
         *Rule:* {}\n\
@@ -523,7 +523,7 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         // Second block should be replaced with text
         assert_eq!(content[1]["type"], "text");
-        assert!(content[1]["text"].as_str().unwrap().contains("MoltBot Harness blocked"));
+        assert!(content[1]["text"].as_str().unwrap().contains("OpenClaw Harness blocked"));
         // Third block should remain tool_use (safe)
         assert_eq!(content[2]["type"], "tool_use");
     }
@@ -685,7 +685,7 @@ mod tests {
         assert_eq!(tool_calls.len(), 1);
         // Block message added to content
         let content = modified_json.pointer("/choices/0/message/content").unwrap().as_str().unwrap();
-        assert!(content.contains("MoltBot Harness blocked"));
+        assert!(content.contains("OpenClaw Harness blocked"));
     }
 
     // --- Gemini format tests ---
@@ -736,6 +736,6 @@ mod tests {
         assert!(parts[0].get("text").is_some());
         // Second part replaced with text
         assert!(parts[1].get("functionCall").is_none());
-        assert!(parts[1]["text"].as_str().unwrap().contains("MoltBot Harness blocked"));
+        assert!(parts[1]["text"].as_str().unwrap().contains("OpenClaw Harness blocked"));
     }
 }

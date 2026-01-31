@@ -16,7 +16,7 @@ export default function Layout({ connected }: { connected: boolean }) {
         <div className="p-4 flex items-center gap-3 border-b border-gray-700">
           <Shield className="w-7 h-7 text-blue-500" />
           <div>
-            <h1 className="font-bold text-lg leading-tight">MoltBot Harness</h1>
+            <h1 className="font-bold text-lg leading-tight">OpenClaw Harness</h1>
             <p className="text-[11px] text-gray-500">Control Center</p>
           </div>
         </div>

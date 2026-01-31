@@ -1,4 +1,4 @@
-//! MoltBot Harness Library
+//! OpenClaw Harness Library
 //!
 //! Core components for AI agent monitoring.
 
@@ -150,7 +150,7 @@ pub enum Recommendation {
     CriticalAlert,
 }
 
-/// Configuration for the MoltBot Harness daemon
+/// Configuration for the OpenClaw Harness daemon
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// Enabled collectors

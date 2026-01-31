@@ -58,7 +58,7 @@ pub async fn start_proxy(config: ProxyConfig, alert_config: Option<AlertConfig>)
         .with_state(state);
 
     let listener = TcpListener::bind(&config.listen).await?;
-    info!("🛡️ MoltBot Harness proxy listening on {}", config.listen);
+    info!("🛡️ OpenClaw Harness proxy listening on {}", config.listen);
     info!("   Target: {}", config.target);
     info!("   Mode: {:?}", config.mode);
 

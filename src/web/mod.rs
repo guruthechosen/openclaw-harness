@@ -1,4 +1,4 @@
-//! Web server for MoltBot Harness Control Center
+//! Web server for OpenClaw Harness Control Center
 //!
 //! Provides REST API and WebSocket endpoints for the UI.
 

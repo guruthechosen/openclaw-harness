@@ -1,7 +1,7 @@
 //! Status command - shows daemon status
 
 pub async fn run() -> anyhow::Result<()> {
-    println!("🛡️ MoltBot Harness Status");
+    println!("🛡️ OpenClaw Harness Status");
     println!("─────────────────");
     
     // TODO: Check if daemon is running

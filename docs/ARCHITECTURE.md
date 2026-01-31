@@ -1,13 +1,13 @@
-# MoltBot Harness Architecture
+# OpenClaw Harness Architecture
 
 ## Overview
 
-MoltBot Harness is a security daemon that monitors AI agents (OpenClaw, Claude Code, Cursor) for potentially dangerous actions.
+OpenClaw Harness is a security daemon that monitors AI agents (OpenClaw, Claude Code, Cursor) for potentially dangerous actions.
 
 ## Design Principles
 
 1. **Deterministic Rules First**: Rule engine is the primary decision maker, AI is supplementary
-2. **Read-Only Observer**: MoltBot Harness never modifies the system, only monitors and alerts
+2. **Read-Only Observer**: OpenClaw Harness never modifies the system, only monitors and alerts
 3. **Local First**: All data stays on the user's machine by default
 4. **Low Overhead**: Minimal CPU/memory footprint
 
@@ -123,7 +123,7 @@ Configuration files are stored in `~/.openclaw-harness/`:
 
 ## Security Considerations
 
-1. **No Elevated Privileges**: MoltBot Harness runs as the user, not root
+1. **No Elevated Privileges**: OpenClaw Harness runs as the user, not root
 2. **Local Data**: All data stays local unless cloud sync is enabled
 3. **Read-Only Access**: Only reads logs, doesn't modify agent behavior
 4. **Secure Alerts**: Alert channels use authenticated APIs

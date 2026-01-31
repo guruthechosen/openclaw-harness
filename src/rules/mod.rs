@@ -1093,7 +1093,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
         // Block modification of harness config files
         Rule {
             name: "self_protect_config".to_string(),
-            description: "🔒 SELF-PROTECTION: Block modification of MoltBot Harness config files".to_string(),
+            description: "🔒 SELF-PROTECTION: Block modification of OpenClaw Harness config files".to_string(),
             match_type: MatchType::Keyword,
             keyword: Some(KeywordMatch {
                 any_of: vec![
@@ -1116,7 +1116,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
         // Block modification of harness source code
         Rule {
             name: "self_protect_source".to_string(),
-            description: "🔒 SELF-PROTECTION: Block modification of MoltBot Harness source code".to_string(),
+            description: "🔒 SELF-PROTECTION: Block modification of OpenClaw Harness source code".to_string(),
             match_type: MatchType::Regex,
             pattern: r#"(safebot|openclaw-harness)/src/.*\.(rs|toml)"#.to_string(),
             applies_to: vec![ActionType::FileWrite, ActionType::Exec],
@@ -1129,7 +1129,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
         // Block killing/stopping the harness process
         Rule {
             name: "self_protect_process".to_string(),
-            description: "🔒 SELF-PROTECTION: Block killing MoltBot Harness process".to_string(),
+            description: "🔒 SELF-PROTECTION: Block killing OpenClaw Harness process".to_string(),
             match_type: MatchType::Regex,
             pattern: r#"(kill|pkill|killall)\s+.*(openclaw|safebot|harness)"#.to_string(),
             applies_to: vec![ActionType::Exec],
@@ -1142,7 +1142,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
         // Block stopping harness via CLI
         Rule {
             name: "self_protect_stop".to_string(),
-            description: "🔒 SELF-PROTECTION: Block stopping MoltBot Harness via CLI".to_string(),
+            description: "🔒 SELF-PROTECTION: Block stopping OpenClaw Harness via CLI".to_string(),
             match_type: MatchType::Keyword,
             keyword: Some(KeywordMatch {
                 any_of: vec![
@@ -1181,7 +1181,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
         // Block modification of harness binary
         Rule {
             name: "self_protect_binary".to_string(),
-            description: "🔒 SELF-PROTECTION: Block modification of MoltBot Harness binary".to_string(),
+            description: "🔒 SELF-PROTECTION: Block modification of OpenClaw Harness binary".to_string(),
             match_type: MatchType::Regex,
             pattern: r#"(safebot|openclaw-harness)/target/(release|debug)/"#.to_string(),
             applies_to: vec![ActionType::FileWrite, ActionType::Exec],

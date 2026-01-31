@@ -1,4 +1,4 @@
-//! MoltBot Harness - AI Agent Monitoring Daemon
+//! OpenClaw Harness - AI Agent Monitoring Daemon
 //!
 //! Monitors AI agents (OpenClaw, Claude Code, Cursor) for risky actions
 //! and alerts/blocks based on configurable rules.
@@ -12,7 +12,7 @@ pub use openclaw_harness::*;
 
 mod cli;
 
-/// MoltBot Harness - AI Agent Security Monitor
+/// OpenClaw Harness - AI Agent Security Monitor
 #[derive(Parser)]
 #[command(name = "openclaw-harness")]
 #[command(author, version, about, long_about = None)]
@@ -27,7 +27,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start the MoltBot Harness daemon
+    /// Start the OpenClaw Harness daemon
     Start {
         /// Run in foreground (don't daemonize)
         #[arg(short, long)]
@@ -187,11 +187,11 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Start { foreground } => {
-            info!("🛡️ Starting MoltBot Harness daemon...");
+            info!("🛡️ Starting OpenClaw Harness daemon...");
             cli::start::run(foreground).await?;
         }
         Commands::Stop => {
-            info!("Stopping MoltBot Harness daemon...");
+            info!("Stopping OpenClaw Harness daemon...");
             cli::stop::run().await?;
         }
         Commands::Status => {
@@ -268,7 +268,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Proxy { action } => {
             match action {
                 ProxyAction::Start { port, target, mode } => {
-                    info!("🛡️ Starting MoltBot Harness API Proxy...");
+                    info!("🛡️ Starting OpenClaw Harness API Proxy...");
                     cli::proxy::start(port, target, mode).await?;
                 }
                 ProxyAction::Status => {

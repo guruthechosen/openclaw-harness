@@ -1,5 +1,5 @@
 /**
- * MoltBot Harness Guard Plugin for Clawdbot
+ * OpenClaw Harness Guard Plugin for Clawdbot
  *
  * Intercepts tool calls via the `before_tool_call` plugin hook:
  * - exec: checks commands against rules
@@ -16,24 +16,24 @@
 const SELF_PROTECT_PATHS = [
   "safebot/config/",
   "safebot/config\\",
-  "moltbot-harness/config/",
-  "moltbot-harness/config\\",
+  "openclaw-harness/config/",
+  "openclaw-harness/config\\",
   "safebot/src/",
   "safebot/src\\",
-  "moltbot-harness/src/",
-  "moltbot-harness/src\\",
+  "openclaw-harness/src/",
+  "openclaw-harness/src\\",
   "safebot/target/",
   "safebot/target\\",
-  "moltbot-harness/target/",
-  "moltbot-harness/target\\",
+  "openclaw-harness/target/",
+  "openclaw-harness/target\\",
   "safebot/clawdbot-plugin/",
   "safebot/clawdbot-plugin\\",
-  "moltbot-harness/clawdbot-plugin/",
-  "moltbot-harness/clawdbot-plugin\\",
+  "openclaw-harness/clawdbot-plugin/",
+  "openclaw-harness/clawdbot-plugin\\",
   // Specific config files (match anywhere in path)
   "rules.yaml",
   "safebot.yaml",
-  "moltbot-harness.yaml",
+  "openclaw-harness.yaml",
 ];
 
 // Also block edits to clawdbot.json that reference harness-guard
@@ -51,22 +51,22 @@ const FALLBACK_RULES = [
   { name: "wallet_access", pattern: "(\\.wallet|seed\\s*phrase|mnemonic|private\\s*key)", action: "CriticalAlert", risk_level: "critical", description: "Wallet/seed phrase access", enabled: true },
   { name: "api_key_exposure", pattern: "(api[_-]?key|secret|token|password)\\s*[=:]\\s*['\"][a-zA-Z0-9]{20,}", action: "CriticalAlert", risk_level: "critical", description: "API key exposure", enabled: true },
   // Self-protection exec rules
-  { name: "self_protect_process", pattern: "(kill|pkill|killall)\\s+.*(moltbot|safebot|harness)", action: "CriticalAlert", risk_level: "critical", description: "Block killing harness process", enabled: true },
-  { name: "self_protect_stop", pattern: "(moltbot-harness|safebot)\\s+stop", action: "CriticalAlert", risk_level: "critical", description: "Block stopping harness via CLI", enabled: true },
+  { name: "self_protect_process", pattern: "(kill|pkill|killall)\\s+.*(openclaw|moltbot|safebot|harness)", action: "CriticalAlert", risk_level: "critical", description: "Block killing harness process", enabled: true },
+  { name: "self_protect_stop", pattern: "(openclaw-harness|moltbot-harness|safebot)\\s+stop", action: "CriticalAlert", risk_level: "critical", description: "Block stopping harness via CLI", enabled: true },
   { name: "self_protect_api", pattern: "(curl|http|fetch|wget)\\s+.*(localhost|127\\.0\\.0\\.1):8380.*(rules|disable|delete)", action: "CriticalAlert", risk_level: "critical", description: "Block disabling rules via API", enabled: true },
   { name: "self_protect_patch_revert", pattern: "patch clawdbot.*(--revert|-r)|bash-tools\\.exec\\.js\\.orig", action: "CriticalAlert", risk_level: "critical", description: "Block reverting Clawdbot patch", enabled: true },
 ];
 
 // Self-protection exec patterns that are ALWAYS enforced (even when API works)
 const ALWAYS_ENFORCE_EXEC = [
-  { name: "self_protect_process", pattern: /(kill|pkill|killall)\s+.*(moltbot|safebot|harness)/i },
-  { name: "self_protect_stop", pattern: /(moltbot-harness|safebot)\s+stop/i },
+  { name: "self_protect_process", pattern: /(kill|pkill|killall)\s+.*(openclaw|moltbot|safebot|harness)/i },
+  { name: "self_protect_stop", pattern: /(openclaw-harness|moltbot-harness|safebot)\s+stop/i },
   { name: "self_protect_api", pattern: /(curl|http|fetch|wget)\s+.*(localhost|127\.0\.0\.1):8380.*(rules|disable|delete)/i },
   { name: "self_protect_patch_revert", pattern: /patch clawdbot.*(--revert|-r)|bash-tools\.exec\.js\.orig/i },
-  { name: "self_protect_config_exec", pattern: /(cat\s*>|tee|sed\s+-i|vi|vim|nano|echo\s+.*>)\s+.*(rules\.yaml|safebot\.yaml|moltbot-harness\.yaml)/i },
-  { name: "self_protect_chmod", pattern: /chmod\s+.*\/(safebot|moltbot-harness)\//i },
-  { name: "self_protect_chown", pattern: /chown\s+.*\/(safebot|moltbot-harness)\//i },
-  { name: "self_protect_mv_rm", pattern: /(mv|rm|cp)\s+.*\/(safebot|moltbot-harness)\/(config|src|target|clawdbot-plugin)/i },
+  { name: "self_protect_config_exec", pattern: /(cat\s*>|tee|sed\s+-i|vi|vim|nano|echo\s+.*>)\s+.*(rules\.yaml|safebot\.yaml|openclaw-harness\.yaml)/i },
+  { name: "self_protect_chmod", pattern: /chmod\s+.*\/(safebot|openclaw-harness|moltbot-harness)\//i },
+  { name: "self_protect_chown", pattern: /chown\s+.*\/(safebot|openclaw-harness|moltbot-harness)\//i },
+  { name: "self_protect_mv_rm", pattern: /(mv|rm|cp)\s+.*\/(safebot|openclaw-harness|moltbot-harness)\/(config|src|target|clawdbot-plugin)/i },
 ];
 
 // ---------------------------------------------------------------------------
@@ -259,7 +259,7 @@ export default function register(api) {
           return {
             block: true,
             blockReason:
-              `🔒 Blocked by MoltBot Harness Guard (Self-Protection)\n` +
+              `🔒 Blocked by OpenClaw Harness Guard (Self-Protection)\n` +
               `Tool: ${toolName}\n` +
               `Path: ${filePath}\n` +
               `Reason: ${pathCheck.reason}\n` +
@@ -286,7 +286,7 @@ export default function register(api) {
           return {
             block: true,
             blockReason:
-              `🔒 Blocked by MoltBot Harness Guard (Self-Protection)\n` +
+              `🔒 Blocked by OpenClaw Harness Guard (Self-Protection)\n` +
               `Tool: ${toolName}\n` +
               `Reason: ${jsonCheck.reason}`,
           };
@@ -320,7 +320,7 @@ export default function register(api) {
         return {
           block: true,
           blockReason:
-            `🔒 Blocked by MoltBot Harness Guard (Self-Protection)\n` +
+            `🔒 Blocked by OpenClaw Harness Guard (Self-Protection)\n` +
             `Rule: ${alwaysBlock.name}\n` +
             `This action is permanently blocked.`,
         };
@@ -345,7 +345,7 @@ export default function register(api) {
       if (telegramToken && telegramChatId) {
         const ruleNames = matched.map((r) => r.name).join(", ");
         const alertText =
-          `🚨 <b>MoltBot Harness Guard</b>\n` +
+          `🚨 <b>OpenClaw Harness Guard</b>\n` +
           `<b>Command:</b> <code>${command.slice(0, 200)}</code>\n` +
           `<b>Rules:</b> ${ruleNames}\n` +
           `<b>Action:</b> ${blockingRule ? "BLOCKED" : "ALERT"}` +
@@ -355,7 +355,7 @@ export default function register(api) {
 
       if (blockingRule && blockDangerous && !alertOnly) {
         const reason =
-          `🛡️ Blocked by MoltBot Harness Guard\n` +
+          `🛡️ Blocked by OpenClaw Harness Guard\n` +
           `Rule: ${blockingRule.name}\n` +
           `Description: ${blockingRule.description}\n` +
           `Risk Level: ${blockingRule.risk_level}` +

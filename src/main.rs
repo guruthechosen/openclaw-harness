@@ -80,7 +80,7 @@ enum Commands {
 
     /// Patch external tools to wire up hooks
     Patch {
-        /// Target to patch (e.g., "clawdbot")
+        /// Target to patch (e.g., "openclaw" or "clawdbot")
         target: String,
         /// Revert the patch
         #[arg(long)]

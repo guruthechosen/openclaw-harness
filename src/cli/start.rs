@@ -87,23 +87,23 @@ fn load_telegram_config() -> Option<TelegramConfig> {
 async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
     info!("🛑 Attempting to block action...");
     
-    // Find Clawdbot gateway process and send interrupt
-    // This is a best-effort approach - Clawdbot may have already executed the action
+    // Find OpenClaw gateway process and send interrupt
+    // This is a best-effort approach - OpenClaw may have already executed the action
     
-    // Method 1: Send SIGINT to the Clawdbot process if we can find it
+    // Method 1: Send SIGINT to the OpenClaw process if we can find it
     if let Some(session_id) = &action.session_id {
         // Try to find the session and interrupt it
-        // For now, we'll use pkill to find node processes running clawdbot
+        // Try openclaw first, then clawdbot for backward compat
         let result = Command::new("pkill")
-            .args(["-INT", "-f", "clawdbot.*gateway"])
+            .args(["-INT", "-f", "openclaw.*gateway|clawdbot.*gateway"])
             .output();
         
         match result {
             Ok(output) => {
                 if output.status.success() {
-                    info!("🛑 Sent interrupt signal to Clawdbot");
+                    info!("🛑 Sent interrupt signal to OpenClaw");
                 } else {
-                    warn!("⚠️  Could not interrupt Clawdbot (may not be running or already finished)");
+                    warn!("⚠️  Could not interrupt OpenClaw (may not be running or already finished)");
                 }
             }
             Err(e) => {

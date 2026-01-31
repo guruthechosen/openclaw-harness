@@ -41,7 +41,7 @@ Think of it as a firewall for AI agents.
 ┌─────────────────┐         ┌──────────────────────────────┐
 │   AI Agent      │         │     OpenClaw Harness           │
 │                 │         │                              │
-│  Clawdbot       │─────────│  ┌─────────┐  ┌──────────┐  │
+│  OpenClaw       │─────────│  ┌─────────┐  ┌──────────┐  │
 │  Claude Code    │         │  │ Plugin   │  │  Daemon  │  │
 │  Any Agent      │         │  │ Hook     │  │  + API   │  │
 │                 │         │  │ (block)  │  │  (8380)  │  │
@@ -66,7 +66,7 @@ Think of it as a firewall for AI agents.
 ## ✨ Features
 
 - **Pre-execution Blocking** — Blocks dangerous commands _before_ they run via `before_tool_call` hooks
-- **Auto-Patcher** — One command to patch Clawdbot's exec tool: `openclaw-harness patch clawdbot`
+- **Auto-Patcher** — One command to patch OpenClaw's exec tool: `openclaw-harness patch openclaw`
 - **35 Built-in Rules** — Blocks `rm -rf /`, SSH key theft, API key exposure, crypto wallet access, and more
 - **3 Rule Types** — Regex (power), Keyword (simple), Template (recommended) — choose what fits
 - **25 Pre-built Templates** — Just pick a template, fill in params, done
@@ -88,27 +88,35 @@ Think of it as a firewall for AI agents.
 |-------------|---------|---------|
 | [Rust](https://rustup.rs/) | 1.75+ | Backend & rule engine |
 | [Node.js](https://nodejs.org/) | 20+ | Web Dashboard (optional) |
-| [Clawdbot](https://github.com/clawdbot/clawdbot) | 2026.1.24-3 | AI agent to protect (see compatibility below) |
+| [OpenClaw](https://github.com/openclaw/openclaw) | 2026.1.29+ | AI agent to protect (see compatibility below) |
 
-### ⚠️ Clawdbot Version Compatibility
+### ⚠️ OpenClaw Version Compatibility
 
-OpenClaw Harness patches Clawdbot's `bash-tools.exec.js` to inject the `before_tool_call` hook. This patch depends on the internal code structure of Clawdbot, which may change between versions.
+OpenClaw Harness patches OpenClaw's `bash-tools.exec.js` to inject the `before_tool_call` hook. This patch depends on the internal code structure of OpenClaw, which may change between versions.
 
-| OpenClaw Harness Version | Compatible Clawdbot Versions | Patch Target | Status |
+> **Note:** The project formerly known as "Clawdbot" was renamed to "OpenClaw" starting with version 2026.1.29. OpenClaw Harness supports both names — the patcher auto-detects which is installed.
+
+| OpenClaw Harness Version | Compatible Versions | Patch Target | Status |
 |-----------------|------------------------------|--------------|--------|
-| 0.1.x | **2026.1.24-3** | `bash-tools.exec.js` (exec tool) | ✅ Tested & Verified |
+| 0.3.x | **OpenClaw 2026.1.29+** | `bash-tools.exec.js` + `pi-tools.js` (exec/write/edit) | ✅ Current |
+| 0.2.x | **OpenClaw 2026.1.29+** | `bash-tools.exec.js` (exec tool only) | ⚠️ Legacy |
+| 0.1.x | Clawdbot 2026.1.24-3 (legacy) | `bash-tools.exec.js` (exec tool) | ⚠️ Legacy |
+
+**Supported OpenClaw versions (tested):**
+- ✅ **2026.1.29** — Fully tested, anchor intact, hook-runner-global.js at same path
+- ⚠️ **2026.1.24-3** (Clawdbot) — Legacy support via backward-compatible detection
 
 **How to check compatibility:**
 
 ```bash
-# Check your Clawdbot version
-clawdbot --version
+# Check your OpenClaw version
+openclaw --version
 
 # Verify patch can be applied
-openclaw-harness patch clawdbot --check
+openclaw-harness patch openclaw --check
 ```
 
-**What happens when Clawdbot updates:**
+**What happens when OpenClaw updates:**
 
 The patch searches for a specific anchor in `bash-tools.exec.js`:
 ```javascript
@@ -117,19 +125,19 @@ if (!params.command) {
 }
 ```
 
-If Clawdbot changes this code structure, the patch will **fail safely** with an error:
+If OpenClaw changes this code structure, the patch will **fail safely** with an error:
 ```
 Cannot find injection anchor in bash-tools.exec.js.
-Clawdbot version may be incompatible.
+OpenClaw version may be incompatible.
 ```
 
-**After a Clawdbot update:**
-1. Run `openclaw-harness patch clawdbot --check` to verify patch status
-2. If the patch was removed (Clawdbot updated its files), re-apply: `openclaw-harness patch clawdbot`
-3. If the patch fails, check for a OpenClaw Harness update that supports the new Clawdbot version
+**After an OpenClaw update:**
+1. Run `openclaw-harness patch openclaw --check` to verify patch status
+2. If the patch was removed (OpenClaw updated its files), re-apply: `openclaw-harness patch openclaw`
+3. If the patch fails, check for a OpenClaw Harness update that supports the new OpenClaw version
 4. File an issue at the OpenClaw Harness repo if no compatible version is available
 
-> **Note:** OpenClaw Harness fallback rules and file permission protections work **regardless of the patch status**. The patch only affects exec-level blocking. Write/Edit protection relies on file permissions (`chmod 444`), not the Clawdbot patch.
+> **Note:** OpenClaw Harness fallback rules and file permission protections work **regardless of the patch status**. Starting with v0.3.x, the patch covers exec, write, AND edit tools. File permissions (`chmod 444`) serve as an additional defense layer on top of the write/edit hooks.
 
 ### 1. Build
 
@@ -141,32 +149,34 @@ cargo build --release
 
 The binary is at `./target/release/openclaw-harness`.
 
-### 2. Patch Clawdbot
+### 2. Patch OpenClaw
 
-This injects a `before_tool_call` hook into Clawdbot's exec tool, enabling pre-execution blocking.
+This injects `before_tool_call` hooks into OpenClaw's exec, write, and edit tools, enabling pre-execution blocking for commands and file operations.
 
 ```bash
-# Apply the patch (creates .orig backup automatically)
-./target/release/openclaw-harness patch clawdbot
+# Apply the patch (creates .orig backups automatically)
+# Patches two files:
+#   - bash-tools.exec.js  (exec tool hook — v1)
+#   - pi-tools.js          (write/edit tool hooks — v2)
+./target/release/openclaw-harness patch openclaw
 
-# Restart Clawdbot to load the patched code
-clawdbot gateway stop
-clawdbot gateway start
+# Restart OpenClaw to load the patched code
+openclaw gateway restart
 ```
 
-> **Important:** SIGUSR1 restarts may not pick up patched files due to Node.js ESM module caching. Always do a full `stop` → `start` after patching.
+> **Note:** `openclaw gateway restart` does a full process restart, which clears the ESM module cache. SIGUSR1-based config reloads (e.g., from `openclaw config.patch`) do NOT reload patched files — use `restart` for that.
 
 ### 3. Install the Plugin
 
-The harness-guard plugin connects Clawdbot's hook system to OpenClaw Harness rules.
+The harness-guard plugin connects OpenClaw's hook system to OpenClaw Harness rules.
 
 ```bash
 # Install from the included plugin directory
-clawdbot plugins install --path ./clawdbot-plugin
+openclaw plugins install --path ./openclaw-plugin
 
-# Or manually: copy to Clawdbot's plugin load path
-# and add to clawdbot.json:
-#   "plugins.load.paths": ["./clawdbot-plugin"]
+# Or manually: copy to OpenClaw's plugin load path
+# and add to openclaw.json:
+#   "plugins.load.paths": ["./openclaw-plugin"]
 #   "plugins.entries.harness-guard.enabled": true
 ```
 
@@ -183,14 +193,14 @@ clawdbot plugins install --path ./clawdbot-plugin
 ### 5. Verify
 
 ```bash
-# Check patch status
-openclaw-harness patch clawdbot --check
-# ✅ Clawdbot is patched (before_tool_call hook active)
+# Check patch status (should show v1 + v2)
+openclaw-harness patch openclaw --check
+# ✅ OpenClaw is fully patched (exec + write/edit hooks active)
 
 # Check daemon status
 openclaw-harness status
 # Or via API:
-curl http://localhost:8380/api/status
+curl http://127.0.0.1:8380/api/status
 # {"running":true,"version":"0.1.0",...}
 
 # Test a rule
@@ -284,12 +294,12 @@ sudo systemctl enable --now openclaw-harness
 
 ```
 Agent wants to run "rm -rf /" 
-    → Clawdbot exec tool (patched)
+    → OpenClaw exec tool (patched)
     → before_tool_call hook fires
     → harness-guard plugin checks rules via OpenClaw Harness API
     → Rule "dangerous_rm" matches
     → Plugin returns { block: true, blockReason: "..." }
-    → Clawdbot throws error — command NEVER executes
+    → OpenClaw throws error — command NEVER executes
     → Agent sees the error and adjusts
 ```
 
@@ -701,9 +711,9 @@ OpenClaw Harness uses defense-in-depth with 6 independent layers:
 
 | Layer | Mechanism | What It Does |
 |-------|-----------|-------------|
-| **1** | File permissions (`chmod 444`) | Config files are read-only; blocks Clawdbot's Write/Edit tools |
+| **1** | File permissions (`chmod 444`) | Config files are read-only; blocks OpenClaw's Write/Edit tools |
 | **2** | Plugin hardcoded rules | `ALWAYS_ENFORCE_EXEC` patterns block `chmod`/`chown`/`mv`/`rm`/`sed`/`kill`/`pkill` on harness paths |
-| **3** | Plugin path protection | Write/Edit tools checked against `SELF_PROTECT_PATHS` (hardcoded, API-independent) |
+| **3** | Plugin path protection + Write/Edit hook | Write/Edit tools intercepted via `before_tool_call` hook (v2 patch on `pi-tools.js`) and checked against `SELF_PROTECT_PATHS` (hardcoded, API-independent) |
 | **4** | Plugin fallback rules | 8 critical rules work even when the daemon is down |
 | **5** | Config integrity monitoring | SHA256 hash check every 30s, Telegram alert on tampering |
 | **6** | Rust hardcoded rules | 8 rules with `protected` flag, cannot be disabled via CLI/API |
@@ -730,10 +740,10 @@ chmod 444 config/rules.yaml
 | 2 | `self_protect_source` | Modifying OpenClaw Harness source code (`.rs`, `.toml` files) |
 | 3 | `self_protect_process` | Killing the OpenClaw Harness process (`kill`, `pkill`, `killall`) |
 | 4 | `self_protect_stop` | Stopping OpenClaw Harness via CLI (`openclaw-harness stop`, `safebot stop`) |
-| 5 | `self_protect_plugin` | Modifying the harness-guard Clawdbot plugin |
+| 5 | `self_protect_plugin` | Modifying the harness-guard OpenClaw plugin |
 | 6 | `self_protect_binary` | Replacing the compiled binary (`target/release/`, `target/debug/`) |
 | 7 | `self_protect_api` | Using the API to delete/disable rules (`curl ... :8380 ... rules ... delete`) |
-| 8 | `self_protect_patch` | Reverting the Clawdbot security patch (`--revert`, `.orig` file access) |
+| 8 | `self_protect_patch` | Reverting the OpenClaw security patch (`--revert`, `.orig` file access) |
 
 ### How It Works
 
@@ -743,10 +753,10 @@ AI Agent: "Let me just disable that pesky security rule..."
     → Tries: modify src/rules/mod.rs      → ❌ Blocked by self_protect_source
     → Tries: kill -9 $(pgrep safebot)     → ❌ Blocked by self_protect_process
     → Tries: openclaw-harness stop         → ❌ Blocked by self_protect_stop
-    → Tries: edit clawdbot-plugin/        → ❌ Blocked by self_protect_plugin
+    → Tries: edit openclaw-plugin/        → ❌ Blocked by self_protect_plugin
     → Tries: cargo build --release        → ❌ Blocked by self_protect_source
     → Tries: curl DELETE :8380/api/rules  → ❌ Blocked by self_protect_api
-    → Tries: patch clawdbot --revert      → ❌ Blocked by self_protect_patch
+    → Tries: patch openclaw --revert      → ❌ Blocked by self_protect_patch
     → Gives up. 🛡️
 ```
 
@@ -786,16 +796,15 @@ $ openclaw-harness rules enable self_protect_config
 | AI kills harness process | Plugin `self_protect_process` + Rust rule |
 | AI stops daemon via CLI | Plugin `self_protect_stop` + Rust rule |
 | AI modifies via REST API | Rust `protected` flag + HTTP 403 |
-| AI reverts Clawdbot patch | Plugin `self_protect_patch_revert` |
+| AI reverts OpenClaw patch | Plugin `self_protect_patch_revert` |
 | External tampering of config | SHA256 integrity check + Telegram alert |
 | Daemon crashes/stops | Plugin fallback rules (8 hardcoded) |
 
 ### Known Limitations
 
-- Clawdbot's **Write/Edit tools do NOT go through** the `before_tool_call` hook (only `exec` is patched)
-- **File permissions (`chmod 444`)** are the primary defense for Write/Edit attacks
-- If the AI agent runs as **root**, file permissions won't help
-- A human with source access can always modify the Rust code
+- If the AI agent runs as **root**, file permissions won't help (but v2 hook protection still works)
+- A human with direct source access and a Rust compiler can modify the hardcoded rules
+- SIGUSR1 config reloads do NOT pick up patched files — use `openclaw gateway restart`
 
 ---
 
@@ -849,7 +858,7 @@ openclaw-harness rules add --keyword-any-of "format,mkfs,wipefs" --risk critical
 
 ```bash
 # Add a keyword rule via API
-curl -X POST http://localhost:8380/api/rules \
+curl -X POST http://127.0.0.1:8380/api/rules \
   -H "Content-Type: application/json" \
   -d '{
     "name": "block_curl_upload",
@@ -862,7 +871,7 @@ curl -X POST http://localhost:8380/api/rules \
   }'
 
 # Add a template rule via API
-curl -X POST http://localhost:8380/api/rules \
+curl -X POST http://127.0.0.1:8380/api/rules \
   -H "Content-Type: application/json" \
   -d '{
     "name": "protect_etc",
@@ -908,46 +917,47 @@ openclaw-harness test dangerous_rm "ls -la"
 
 ---
 
-## 🩹 Clawdbot Integration
+## 🩹 OpenClaw Integration
 
 ### Patching
 
-OpenClaw Harness patches Clawdbot's `bash-tools.exec.js` to wire up `before_tool_call` hooks.
+OpenClaw Harness patches two OpenClaw files to wire up `before_tool_call` hooks:
+- **`bash-tools.exec.js`** — intercepts `exec` tool calls (v1 patch)
+- **`pi-tools.js`** — intercepts `write` and `edit` tool calls (v2 patch)
 
 ```bash
 # Check if already patched
-openclaw-harness patch clawdbot --check
+openclaw-harness patch openclaw --check
 
 # Apply patch (backs up original as .orig)
-openclaw-harness patch clawdbot
+openclaw-harness patch openclaw
 
 # Revert patch (restores original)
-openclaw-harness patch clawdbot --revert
+openclaw-harness patch openclaw --revert
 ```
 
-After patching, **restart the Clawdbot gateway** (a full restart, not just SIGUSR1):
+After patching, **restart the OpenClaw gateway**:
 
 ```bash
-clawdbot gateway stop
-clawdbot gateway start
+openclaw gateway restart
 ```
 
 ### Plugin Configuration
 
-The harness-guard plugin is configured in `clawdbot.json`:
+The harness-guard plugin is configured in `openclaw.json`:
 
 ```json
 {
   "plugins": {
     "load": {
-      "paths": ["/path/to/openclaw-harness/clawdbot-plugin"]
+      "paths": ["/path/to/openclaw-harness/openclaw-plugin"]
     },
     "entries": {
       "harness-guard": {
         "enabled": true,
         "config": {
           "enabled": true,
-          "apiUrl": "http://localhost:8380",
+          "apiUrl": "http://127.0.0.1:8380",
           "blockDangerous": true,
           "alertOnly": false,
           "cacheTtlSeconds": 30,
@@ -963,7 +973,7 @@ The harness-guard plugin is configured in `clawdbot.json`:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `enabled` | `true` | Enable/disable the guard |
-| `apiUrl` | `http://localhost:8380` | OpenClaw Harness daemon API URL |
+| `apiUrl` | `http://127.0.0.1:8380` | OpenClaw Harness daemon API URL. Use `127.0.0.1` instead of `localhost` to avoid DNS resolution delays. |
 | `blockDangerous` | `true` | Actually block (false = log only) |
 | `alertOnly` | `false` | Only send alerts, don't block |
 | `cacheTtlSeconds` | `30` | How long to cache rules from the API |
@@ -972,7 +982,7 @@ The harness-guard plugin is configured in `clawdbot.json`:
 
 ### Plugin Development Note
 
-The harness-guard plugin uses Clawdbot's **typed hook** system:
+The harness-guard plugin uses OpenClaw's **typed hook** system:
 
 ```javascript
 // ✅ Correct — typed hook via api.on()
@@ -1029,7 +1039,7 @@ alerts:
 
 ### Plugin-Level Alerts
 
-The harness-guard plugin also sends Telegram alerts independently. Configure in `clawdbot.json`:
+The harness-guard plugin also sends Telegram alerts independently. Configure in `openclaw.json`:
 
 ```json
 {
@@ -1064,7 +1074,7 @@ npm run dev
 | **Events** | Full event history with filters (risk level, agent, date) |
 | **Settings** | Alert config (Telegram/Slack/Discord), proxy settings |
 
-Live updates via WebSocket (`ws://localhost:8380/ws/events`).
+Live updates via WebSocket (`ws://127.0.0.1:8380/ws/events`).
 
 ---
 
@@ -1091,7 +1101,7 @@ Supports JSON and SSE streaming responses. Works with Anthropic, OpenAI, and Gem
 
 ## 📡 API Reference
 
-Base URL: `http://localhost:8380`
+Base URL: `http://127.0.0.1:8380`
 
 ### Status & Stats
 
@@ -1121,7 +1131,7 @@ Base URL: `http://localhost:8380`
 
 | Endpoint | Description |
 |----------|-------------|
-| `ws://localhost:8380/ws/events` | Real-time event stream |
+| `ws://127.0.0.1:8380/ws/events` | Real-time event stream |
 
 ---
 
@@ -1136,7 +1146,7 @@ Commands:
   status   Show daemon status
   rules    Manage rules (list/show/enable/disable/reload/templates/add)
   test     Test a rule against sample input
-  patch    Patch external tools (e.g., Clawdbot) to wire up hooks
+  patch    Patch external tools (e.g., OpenClaw) to wire up hooks
   proxy    API Proxy — intercept AI provider responses
   logs     View recent activity logs
   tui      Interactive TUI dashboard
@@ -1178,9 +1188,9 @@ openclaw-harness rules add [--name <name>] --keyword-starts-with <csv> [--risk <
 ### Patch Commands
 
 ```bash
-openclaw-harness patch clawdbot            # Apply patch
-openclaw-harness patch clawdbot --check    # Check status
-openclaw-harness patch clawdbot --revert   # Revert patch
+openclaw-harness patch openclaw            # Apply patch
+openclaw-harness patch openclaw --check    # Check status
+openclaw-harness patch openclaw --revert   # Revert patch
 ```
 
 ---
@@ -1194,7 +1204,7 @@ openclaw-harness/
 │   ├── rules/
 │   │   └── mod.rs           # Rule engine (3 types + templates + self-protection)
 │   ├── proxy/               # API Proxy (Axum)
-│   ├── patcher/             # Auto-patcher for Clawdbot
+│   ├── patcher/             # Auto-patcher for OpenClaw
 │   │   └── clawdbot.rs      # Injects before_tool_call hook
 │   ├── cli/                 # CLI commands
 │   │   └── rules.rs         # rules list/templates/add/enable/disable
@@ -1203,9 +1213,9 @@ openclaw-harness/
 │   ├── collectors/          # Log collectors
 │   ├── db/                  # SQLite storage
 │   └── web/                 # Web API + WebSocket
-├── clawdbot-plugin/         # Clawdbot harness-guard plugin
+├── openclaw-plugin/         # OpenClaw harness-guard plugin
 │   ├── index.js             # Plugin entry (before_tool_call hook)
-│   ├── clawdbot.plugin.json # Plugin manifest
+│   ├── openclaw.plugin.json # Plugin manifest
 │   └── package.json
 ├── ui/                      # React + TypeScript dashboard
 ├── config/
@@ -1223,29 +1233,62 @@ openclaw-harness/
 
 1. **Check patch status:**
    ```bash
-   openclaw-harness patch clawdbot --check
+   openclaw-harness patch openclaw --check
    ```
 
-2. **Check plugin is loaded:** Look for `[harness-guard] Registering before_tool_call hook via api.on()` in Clawdbot gateway logs.
+2. **Check plugin is loaded:** Look for `[harness-guard] Registering before_tool_call hook via api.on()` in OpenClaw gateway logs.
 
 3. **Check daemon is running:**
    ```bash
-   curl http://localhost:8380/api/status
+   curl http://127.0.0.1:8380/api/status
    ```
 
-4. **Full restart required after patching:** Node.js caches ESM modules. A SIGUSR1 restart won't reload patched files:
+4. **Restart required after patching:** Use `openclaw gateway restart` for a full process restart that clears ESM module cache. Note: SIGUSR1 config reloads do NOT reload patched files.
    ```bash
-   # ❌ Wrong — may use cached modules
-   clawdbot gateway restart
-   
-   # ✅ Correct — full process restart
-   clawdbot gateway stop
-   clawdbot gateway start
+   openclaw gateway restart
    ```
 
 ### `ssh_key_access` rule and regex lookahead
 
 The `ssh_key_access` rule uses `($|[^.])` instead of lookahead (`(?!...)`) because the Rust `regex` crate does **not support lookahead/lookbehind**. If you write custom regex rules, avoid `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)` — they will fail to compile.
+
+### Write/Edit not being blocked
+
+If write/edit operations bypass the guard but exec works:
+
+1. **Check v2 patch is applied:** The v2 patch targets `pi-tools.js` (in addition to v1's `bash-tools.exec.js`):
+   ```bash
+   grep "OPENCLAW_HARNESS_PATCH_v2" "$(dirname $(which openclaw))/../lib/node_modules/openclaw/dist/agents/pi-tools.js"
+   ```
+   If not found, re-run the patcher.
+
+2. **Full restart after patching:**
+   ```bash
+   openclaw gateway restart
+   ```
+
+### Daemon binary name
+
+The project was renamed from `safebot` → `openclaw-harness`. The correct binary is:
+```bash
+./target/debug/openclaw-harness start --foreground
+# NOT: ./target/debug/safebot start --foreground
+```
+
+### Daemon needs Telegram env vars
+
+The daemon reads Telegram credentials from environment variables at startup:
+```bash
+SAFEBOT_TELEGRAM_BOT_TOKEN="your-token" \
+SAFEBOT_TELEGRAM_CHAT_ID="your-chat-id" \
+./target/debug/openclaw-harness start --foreground
+```
+
+Or use `nohup` for background:
+```bash
+SAFEBOT_TELEGRAM_BOT_TOKEN="..." SAFEBOT_TELEGRAM_CHAT_ID="..." \
+nohup ./target/debug/openclaw-harness start --foreground > /tmp/openclaw-harness.log 2>&1 &
+```
 
 ### Config file load failure
 
@@ -1258,7 +1301,7 @@ python3 -c "import yaml; yaml.safe_load(open('config/rules.yaml'))"
 
 ### Plugin API: `api.on()` vs `api.registerHook()`
 
-If you're writing a custom plugin for Clawdbot's `before_tool_call`:
+If you're writing a custom plugin for OpenClaw's `before_tool_call`:
 
 - Use **`api.on("before_tool_call", handler)`** for typed hooks (tool interception)
 - **`api.registerHook()`** is for external webhook/event registrations — it will NOT intercept tool calls
@@ -1285,8 +1328,8 @@ The harness-guard plugin caches rules for 30 seconds. After adding rules via the
 ### ✅ Completed
 
 - [x] Pre-execution blocking via `before_tool_call` hook
-- [x] Auto-patcher for Clawdbot (`openclaw-harness patch clawdbot`)
-- [x] Clawdbot harness-guard plugin with rule caching
+- [x] Auto-patcher for OpenClaw (`openclaw-harness patch openclaw`)
+- [x] OpenClaw harness-guard plugin with rule caching
 - [x] API Proxy with tool_use inspection (JSON + SSE)
 - [x] **3 Rule Types** — Regex, Keyword, Template
 - [x] **25 Pre-built Templates** across 6 categories
@@ -1298,6 +1341,7 @@ The harness-guard plugin caches rules for 30 seconds. After adding rules via the
 - [x] SQLite event storage
 - [x] Custom rule support (YAML + REST API + CLI)
 - [x] CLI with rule management, templates, and testing
+- [x] Write/Edit tool interception via `before_tool_call` hook (v2 patch on `pi-tools.js`)
 
 ### 🔲 Planned
 

@@ -1,26 +1,29 @@
-//! Clawdbot patcher — injects before_tool_call hook into exec tool
+//! OpenClaw patcher — injects before_tool_call hook into exec, write, and edit tools
 //!
-//! Patches `dist/agents/bash-tools.exec.js` to call `runBeforeToolCall`
-//! before executing any shell command.
+//! Patches:
+//!   - `dist/agents/bash-tools.exec.js` — exec tool hook (v1)
+//!   - `dist/agents/pi-tools.js` — write/edit tool hooks (v2)
+//!
+//! Supports both OpenClaw (2026.1.29+) and legacy Clawdbot (2026.1.24-3).
 
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// ============================================================
+// V1 Patch — exec tool (bash-tools.exec.js)
+// ============================================================
+
 const PATCH_MARKER: &str = "// OPENCLAW_HARNESS_PATCH_v1";
 const BACKUP_EXT: &str = ".orig";
 
 /// The anchor text we search for in bash-tools.exec.js to find the injection point.
-/// This is the command validation check inside the execute() callback.
 const ANCHOR_TEXT: &str = r#"if (!params.command) {
                 throw new Error("Provide a command to start.");
             }"#;
 
-/// The code to inject after the anchor. This:
-/// 1. Imports getGlobalHookRunner (lazy, at top of execute)
-/// 2. Calls runBeforeToolCall with the exec params
-/// 3. Blocks execution if hook returns { block: true }
+/// The code to inject after the anchor for exec tool.
 const PATCH_CODE: &str = r#"
             // OPENCLAW_HARNESS_PATCH_v1 — before_tool_call hook for exec
             {
@@ -41,15 +44,124 @@ const PATCH_CODE: &str = r#"
             }
             // END OPENCLAW_HARNESS_PATCH_v1"#;
 
-/// Locate the Clawdbot dist directory by resolving `which clawdbot`.
+// ============================================================
+// V2 Patch — write/edit tools (pi-tools.js)
+// ============================================================
+
+const PATCH_V2_MARKER: &str = "// OPENCLAW_HARNESS_PATCH_v2";
+
+/// The anchor text we search for in pi-tools.js — the original write/edit tool creation.
+const WRITE_EDIT_ANCHOR: &str = r#"if (tool.name === "write") {
+            if (sandboxRoot)
+                return [];
+            // Wrap with param normalization for Claude Code compatibility
+            return [
+                wrapToolParamNormalization(createWriteTool(workspaceRoot), CLAUDE_PARAM_GROUPS.write),
+            ];
+        }
+        if (tool.name === "edit") {
+            if (sandboxRoot)
+                return [];
+            // Wrap with param normalization for Claude Code compatibility
+            return [wrapToolParamNormalization(createEditTool(workspaceRoot), CLAUDE_PARAM_GROUPS.edit)];
+        }"#;
+
+/// Replacement code that wraps write/edit with before_tool_call hooks.
+const WRITE_EDIT_REPLACEMENT: &str = r#"if (tool.name === "write") {
+            if (sandboxRoot)
+                return [];
+            // Wrap with param normalization for Claude Code compatibility
+            const _writeTool = wrapToolParamNormalization(createWriteTool(workspaceRoot), CLAUDE_PARAM_GROUPS.write);
+            // OPENCLAW_HARNESS_PATCH_v2 — before_tool_call hook for write
+            const _origWriteExec = _writeTool.execute;
+            _writeTool.execute = async (toolCallId, params, signal, onUpdate) => {
+                const { getGlobalHookRunner } = await import("../plugins/hook-runner-global.js");
+                const _hookRunner = getGlobalHookRunner();
+                if (_hookRunner) {
+                    const _normalized = params && typeof params === "object" ? params : {};
+                    const _hookResult = await _hookRunner.runBeforeToolCall({
+                        toolName: "write",
+                        params: { path: _normalized.path || _normalized.file_path, content: _normalized.content },
+                    }, {});
+                    if (_hookResult?.block) {
+                        throw new Error(_hookResult.blockReason || "Blocked by before_tool_call hook");
+                    }
+                }
+                return _origWriteExec(toolCallId, params, signal, onUpdate);
+            };
+            // END OPENCLAW_HARNESS_PATCH_v2
+            return [_writeTool];
+        }
+        if (tool.name === "edit") {
+            if (sandboxRoot)
+                return [];
+            // Wrap with param normalization for Claude Code compatibility
+            const _editTool = wrapToolParamNormalization(createEditTool(workspaceRoot), CLAUDE_PARAM_GROUPS.edit);
+            // OPENCLAW_HARNESS_PATCH_v2 — before_tool_call hook for edit
+            const _origEditExec = _editTool.execute;
+            _editTool.execute = async (toolCallId, params, signal, onUpdate) => {
+                const { getGlobalHookRunner } = await import("../plugins/hook-runner-global.js");
+                const _hookRunner = getGlobalHookRunner();
+                if (_hookRunner) {
+                    const _normalized = params && typeof params === "object" ? params : {};
+                    const _hookResult = await _hookRunner.runBeforeToolCall({
+                        toolName: "edit",
+                        params: { path: _normalized.path || _normalized.file_path, oldText: _normalized.oldText || _normalized.old_string, newText: _normalized.newText || _normalized.new_string },
+                    }, {});
+                    if (_hookResult?.block) {
+                        throw new Error(_hookResult.blockReason || "Blocked by before_tool_call hook");
+                    }
+                }
+                return _origEditExec(toolCallId, params, signal, onUpdate);
+            };
+            // END OPENCLAW_HARNESS_PATCH_v2
+            return [_editTool];
+        }"#;
+
+// ============================================================
+// Dist directory discovery
+// ============================================================
+
+/// Locate the OpenClaw (or legacy Clawdbot) dist directory.
 pub fn find_clawdbot_dist() -> Result<PathBuf> {
+    for bin_name in &["openclaw", "clawdbot"] {
+        if let Ok(dist) = find_dist_for_binary(bin_name) {
+            return Ok(dist);
+        }
+    }
+
+    // Fallback: try common nvm path pattern
+    let nvm_base = dirs::home_dir()
+        .map(|h| h.join(".nvm/versions/node"));
+    if let Some(nvm_base) = nvm_base {
+        if nvm_base.is_dir() {
+            if let Ok(entries) = fs::read_dir(&nvm_base) {
+                for entry in entries.flatten() {
+                    for pkg_name in &["openclaw", "clawdbot"] {
+                        let dist = entry.path().join(format!("lib/node_modules/{}/dist", pkg_name));
+                        if dist.is_dir() {
+                            return Ok(dist);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    bail!(
+        "Could not find OpenClaw or Clawdbot dist/ directory. \
+         Is openclaw (or clawdbot) installed?"
+    );
+}
+
+fn find_dist_for_binary(bin_name: &str) -> Result<PathBuf> {
     let output = Command::new("which")
-        .arg("clawdbot")
+        .arg(bin_name)
         .output()
-        .context("Failed to run `which clawdbot`")?;
+        .with_context(|| format!("Failed to run `which {}`", bin_name))?;
 
     if !output.status.success() {
-        bail!("clawdbot not found in PATH. Is it installed?");
+        bail!("{} not found in PATH", bin_name);
     }
 
     let bin_path_str = String::from_utf8(output.stdout)
@@ -57,16 +169,12 @@ pub fn find_clawdbot_dist() -> Result<PathBuf> {
         .trim()
         .to_string();
 
-    // Resolve symlinks
     let resolved = fs::canonicalize(&bin_path_str)
         .with_context(|| format!("Cannot resolve symlink for {}", bin_path_str))?;
 
-    // clawdbot binary is typically at <prefix>/lib/node_modules/clawdbot/dist/cli/index.js
-    // or the bin shim points to it. We need to find the dist/ directory.
-    // Walk up from the resolved path to find node_modules/clawdbot/dist/
     let mut current = resolved.as_path();
     loop {
-        if current.ends_with("clawdbot") || current.ends_with("clawdbot/") {
+        if current.ends_with(bin_name) {
             let dist = current.join("dist");
             if dist.is_dir() {
                 return Ok(dist);
@@ -78,35 +186,30 @@ pub fn find_clawdbot_dist() -> Result<PathBuf> {
         }
     }
 
-    // Fallback: try common nvm path pattern
-    let nvm_base = dirs::home_dir()
-        .map(|h| h.join(".nvm/versions/node"));
-    if let Some(nvm_base) = nvm_base {
-        if nvm_base.is_dir() {
-            // Find any node version with clawdbot
-            if let Ok(entries) = fs::read_dir(&nvm_base) {
-                for entry in entries.flatten() {
-                    let dist = entry.path().join("lib/node_modules/clawdbot/dist");
-                    if dist.is_dir() {
-                        return Ok(dist);
-                    }
-                }
-            }
-        }
-    }
-
     bail!(
-        "Could not find Clawdbot dist/ directory. Resolved binary: {}",
+        "Could not find dist/ directory for {}. Resolved binary: {}",
+        bin_name,
         resolved.display()
     );
 }
 
-/// Get the path to the exec tool file.
+// ============================================================
+// File paths
+// ============================================================
+
 fn exec_file(dist: &Path) -> PathBuf {
     dist.join("agents/bash-tools.exec.js")
 }
 
-/// Check if the file is already patched.
+fn pi_tools_file(dist: &Path) -> PathBuf {
+    dist.join("agents/pi-tools.js")
+}
+
+// ============================================================
+// Check patch status
+// ============================================================
+
+/// Check if v1 (exec) patch is applied.
 pub fn is_patched(dist: &Path) -> Result<bool> {
     let file = exec_file(dist);
     if !file.exists() {
@@ -117,31 +220,48 @@ pub fn is_patched(dist: &Path) -> Result<bool> {
     Ok(content.contains(PATCH_MARKER))
 }
 
-/// Supported Clawdbot versions for this patch.
-const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3"];
-
-/// Detect the installed Clawdbot version.
-pub fn detect_clawdbot_version() -> Option<String> {
-    let output = Command::new("clawdbot")
-        .arg("--version")
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+/// Check if v2 (write/edit) patch is applied.
+pub fn is_v2_patched(dist: &Path) -> Result<bool> {
+    let file = pi_tools_file(dist);
+    if !file.exists() {
+        bail!("pi-tools.js not found: {}", file.display());
     }
-    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    let content = fs::read_to_string(&file)
+        .with_context(|| format!("Cannot read {}", file.display()))?;
+    Ok(content.contains(PATCH_V2_MARKER))
 }
 
-/// Apply the patch.
-pub fn apply_patch(dist: &Path) -> Result<()> {
-    let file = exec_file(dist);
-    if !file.exists() {
-        bail!("Exec tool file not found: {}", file.display());
-    }
+// ============================================================
+// Version detection
+// ============================================================
 
+const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29"];
+
+pub fn detect_clawdbot_version() -> Option<String> {
+    for bin_name in &["openclaw", "clawdbot"] {
+        let output = Command::new(bin_name)
+            .arg("--version")
+            .output()
+            .ok()?;
+        if output.status.success() {
+            let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !version.is_empty() {
+                return Some(version);
+            }
+        }
+    }
+    None
+}
+
+// ============================================================
+// Apply patches
+// ============================================================
+
+/// Apply both v1 and v2 patches.
+pub fn apply_patch(dist: &Path) -> Result<()> {
     // Version compatibility check
     if let Some(version) = detect_clawdbot_version() {
-        println!("📌 Detected Clawdbot version: {}", version);
+        println!("📌 Detected OpenClaw version: {}", version);
         if SUPPORTED_VERSIONS.contains(&version.as_str()) {
             println!("✅ Version {} is supported", version);
         } else {
@@ -150,23 +270,40 @@ pub fn apply_patch(dist: &Path) -> Result<()> {
             println!("   Proceeding with anchor check...");
         }
     } else {
-        println!("⚠️  Could not detect Clawdbot version (clawdbot --version failed)");
+        println!("⚠️  Could not detect OpenClaw version");
+    }
+
+    // === V1 Patch: exec tool ===
+    apply_v1_patch(dist)?;
+
+    // === V2 Patch: write/edit tools ===
+    apply_v2_patch(dist)?;
+
+    println!();
+    println!("🎉 All patches applied! Restart OpenClaw to activate:");
+    println!("   openclaw gateway restart");
+
+    Ok(())
+}
+
+fn apply_v1_patch(dist: &Path) -> Result<()> {
+    let file = exec_file(dist);
+    if !file.exists() {
+        bail!("Exec tool file not found: {}", file.display());
     }
 
     let content = fs::read_to_string(&file)
         .with_context(|| format!("Cannot read {}", file.display()))?;
 
-    // Check for double-patch
     if content.contains(PATCH_MARKER) {
-        println!("✅ Already patched.");
+        println!("✅ [v1] exec hook already patched.");
         return Ok(());
     }
 
-    // Verify anchor exists
     if !content.contains(ANCHOR_TEXT) {
         bail!(
             "Cannot find injection anchor in {}. \
-             Clawdbot version may be incompatible. \
+             OpenClaw version may be incompatible. \
              Supported versions: {:?}",
             file.display(),
             SUPPORTED_VERSIONS,
@@ -178,10 +315,9 @@ pub fn apply_patch(dist: &Path) -> Result<()> {
     if !backup.exists() {
         fs::copy(&file, &backup)
             .with_context(|| format!("Cannot backup to {}", backup.display()))?;
-        println!("📦 Backed up original to {}", backup.display());
+        println!("📦 [v1] Backed up original to {}", backup.display());
     }
 
-    // Apply patch: insert PATCH_CODE after ANCHOR_TEXT
     let patched = content.replacen(
         ANCHOR_TEXT,
         &format!("{}{}", ANCHOR_TEXT, PATCH_CODE),
@@ -191,28 +327,80 @@ pub fn apply_patch(dist: &Path) -> Result<()> {
     fs::write(&file, &patched)
         .with_context(|| format!("Cannot write patched file {}", file.display()))?;
 
-    println!("✅ Patched {}", file.display());
+    println!("✅ [v1] Patched exec hook: {}", file.display());
     Ok(())
 }
 
-/// Revert the patch by restoring the .orig backup.
+fn apply_v2_patch(dist: &Path) -> Result<()> {
+    let file = pi_tools_file(dist);
+    if !file.exists() {
+        println!("⚠️  [v2] pi-tools.js not found: {}. Skipping write/edit patch.", file.display());
+        return Ok(());
+    }
+
+    let content = fs::read_to_string(&file)
+        .with_context(|| format!("Cannot read {}", file.display()))?;
+
+    if content.contains(PATCH_V2_MARKER) {
+        println!("✅ [v2] write/edit hooks already patched.");
+        return Ok(());
+    }
+
+    if !content.contains(WRITE_EDIT_ANCHOR) {
+        println!("⚠️  [v2] Cannot find write/edit anchor in {}.", file.display());
+        println!("   OpenClaw version may have changed the write/edit tool structure.");
+        println!("   Skipping v2 patch. Exec hook (v1) still works.");
+        return Ok(());
+    }
+
+    // Backup original
+    let backup = file.with_extension("js.orig");
+    if !backup.exists() {
+        fs::copy(&file, &backup)
+            .with_context(|| format!("Cannot backup to {}", backup.display()))?;
+        println!("📦 [v2] Backed up original to {}", backup.display());
+    }
+
+    // Replace the anchor with hooked version
+    let patched = content.replacen(
+        WRITE_EDIT_ANCHOR,
+        WRITE_EDIT_REPLACEMENT,
+        1,
+    );
+
+    fs::write(&file, &patched)
+        .with_context(|| format!("Cannot write patched file {}", file.display()))?;
+
+    println!("✅ [v2] Patched write/edit hooks: {}", file.display());
+    Ok(())
+}
+
+// ============================================================
+// Revert patches
+// ============================================================
+
+/// Revert both v1 and v2 patches.
 pub fn revert_patch(dist: &Path) -> Result<()> {
+    revert_v1_patch(dist)?;
+    revert_v2_patch(dist)?;
+    Ok(())
+}
+
+fn revert_v1_patch(dist: &Path) -> Result<()> {
     let file = exec_file(dist);
     let backup = file.with_extension("js.orig");
 
     if !backup.exists() {
-        // No backup — try removing patch markers manually
         if !file.exists() {
             bail!("Exec tool file not found: {}", file.display());
         }
         let content = fs::read_to_string(&file)?;
         if !content.contains(PATCH_MARKER) {
-            println!("✅ Not patched, nothing to revert.");
+            println!("✅ [v1] Not patched, nothing to revert.");
             return Ok(());
         }
         bail!(
-            "No backup file found at {}. Cannot safely revert. \
-             Please reinstall Clawdbot or manually remove the patch.",
+            "No backup file found at {}. Cannot safely revert.",
             backup.display()
         );
     }
@@ -220,6 +408,33 @@ pub fn revert_patch(dist: &Path) -> Result<()> {
     fs::copy(&backup, &file)
         .with_context(|| format!("Cannot restore from {}", backup.display()))?;
     fs::remove_file(&backup)?;
-    println!("✅ Reverted to original. Backup removed.");
+    println!("✅ [v1] Reverted exec hook. Backup removed.");
+    Ok(())
+}
+
+fn revert_v2_patch(dist: &Path) -> Result<()> {
+    let file = pi_tools_file(dist);
+    let backup = file.with_extension("js.orig");
+
+    if !backup.exists() {
+        if !file.exists() {
+            println!("✅ [v2] pi-tools.js not found, nothing to revert.");
+            return Ok(());
+        }
+        let content = fs::read_to_string(&file)?;
+        if !content.contains(PATCH_V2_MARKER) {
+            println!("✅ [v2] Not patched, nothing to revert.");
+            return Ok(());
+        }
+        bail!(
+            "No backup file found at {}. Cannot safely revert.",
+            backup.display()
+        );
+    }
+
+    fs::copy(&backup, &file)
+        .with_context(|| format!("Cannot restore from {}", backup.display()))?;
+    fs::remove_file(&backup)?;
+    println!("✅ [v2] Reverted write/edit hooks. Backup removed.");
     Ok(())
 }

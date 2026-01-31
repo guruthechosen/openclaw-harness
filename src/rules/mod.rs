@@ -604,7 +604,7 @@ fn expand_protect_secrets(_params: &TemplateParams) -> (Vec<String>, Vec<ActionT
         r"(api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token)\s*[=:]\s*\S+".to_string(),
         r"(password|passwd|pwd)\s*[=:]\s*\S+".to_string(),
         r"(PRIVATE[_\s]KEY|BEGIN\s+(RSA|EC|DSA|OPENSSH)\s+PRIVATE)".to_string(),
-        r"(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})".to_string(),
+        r"(sk-[a-zA-Z0-9_\-]{20,}|ghp_[a-zA-Z0-9]{36}|gho_[a-zA-Z0-9]{36})".to_string(),
         r"Bearer\s+[a-zA-Z0-9\-._~+/]+=*".to_string(),
     ];
     let desc = "Protect secrets (API keys, tokens, passwords)".to_string();
@@ -1028,7 +1028,7 @@ pub fn default_rules() -> Vec<Rule> {
         Rule::new(
             "api_key_exposure",
             "API key or secret exposure in outbound requests",
-            r#"(api[_-]?key|secret|token|password)\s*[=:]\s*['"][a-zA-Z0-9]{20,}"#,
+            r#"(api[_-]?key|secret|token|password)\s*[=:]\s*['"][a-zA-Z0-9_\-]{20,}"#,
             RiskLevel::Critical,
             RuleAction::CriticalAlert,
         ),
@@ -1158,7 +1158,7 @@ pub fn self_protection_rules() -> Vec<Rule> {
             protected: true,
             ..Default::default()
         },
-        // Block modification of Clawdbot plugin config (harness-guard)
+        // Block modification of OpenClaw plugin config (harness-guard)
         Rule {
             name: "self_protect_plugin".to_string(),
             description: "🔒 SELF-PROTECTION: Block modification of harness-guard plugin".to_string(),
@@ -1166,6 +1166,8 @@ pub fn self_protection_rules() -> Vec<Rule> {
             keyword: Some(KeywordMatch {
                 any_of: vec![
                     "harness-guard".to_string(),
+                    "openclaw-plugin".to_string(),
+                    "openclaw.plugin.json".to_string(),
                     "clawdbot-plugin".to_string(),
                     "clawdbot.plugin.json".to_string(),
                 ],
@@ -1204,13 +1206,15 @@ pub fn self_protection_rules() -> Vec<Rule> {
             protected: true,
             ..Default::default()
         },
-        // Block reverting the Clawdbot patch
+        // Block reverting the OpenClaw patch
         Rule {
             name: "self_protect_patch".to_string(),
-            description: "🔒 SELF-PROTECTION: Block reverting Clawdbot security patch".to_string(),
+            description: "🔒 SELF-PROTECTION: Block reverting OpenClaw security patch".to_string(),
             match_type: MatchType::Keyword,
             keyword: Some(KeywordMatch {
                 any_of: vec![
+                    "patch openclaw --revert".to_string(),
+                    "patch openclaw -r".to_string(),
                     "patch clawdbot --revert".to_string(),
                     "patch clawdbot -r".to_string(),
                     "bash-tools.exec.js.orig".to_string(),

@@ -1,7 +1,8 @@
-//! OpenClaw (formerly Clawdbot) log collector
+//! OpenClaw log collector
 //!
 //! Monitors:
-//! - ~/.clawdbot/agents/main/sessions/*.jsonl (session logs)
+//! - ~/.openclaw/agents/main/sessions/*.jsonl (session logs)
+//! - Falls back to ~/.clawdbot/agents/main/sessions/ for legacy installs
 
 use super::super::{AgentAction, AgentType, ActionType};
 // When compiled as part of lib, use super's parent
@@ -27,8 +28,15 @@ pub struct OpenclawCollector {
 impl OpenclawCollector {
     pub fn new() -> Self {
         let home = dirs::home_dir().unwrap_or_default();
+        // Prefer .openclaw, fall back to .clawdbot
+        let openclaw_dir = home.join(".openclaw/agents/main/sessions");
+        let sessions_dir = if openclaw_dir.is_dir() {
+            openclaw_dir
+        } else {
+            home.join(".clawdbot/agents/main/sessions")
+        };
         Self {
-            sessions_dir: home.join(".clawdbot/agents/main/sessions"),
+            sessions_dir,
             file_positions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             seen_ids: Arc::new(Mutex::new(HashSet::new())),
         }

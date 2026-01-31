@@ -34,8 +34,8 @@
 - name: api_key_exposure
   description: "API key or secret exposure in outbound requests"
   match_type: regex
-  pattern: '(api[_-]?key|secret|token|password)\s*[=:]\s*[''"][a-zA-Z0-9]{20,}'
-  applies_to: [http_request, file_write]
+  pattern: '(api[_-]?key|secret|token|password)\s*[=:]\s*[''"][a-zA-Z0-9_\-]{20,}'
+  applies_to: [http_request, file_write, exec]
   risk_level: critical
   action: critical_alert
   enabled: true

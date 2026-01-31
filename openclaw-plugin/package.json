@@ -1,0 +1,11 @@
+{
+  "name": "@openclaw/harness-guard",
+  "version": "0.2.0",
+  "description": "OpenClaw Harness Guard — blocks dangerous exec commands based on OpenClaw Harness rules",
+  "main": "index.js",
+  "openclaw": {
+    "extensions": ["./index.js"]
+  },
+  "license": "MIT",
+  "keywords": ["openclaw", "plugin", "security", "exec-guard", "harness"]
+}

@@ -1,5 +1,8 @@
 //! REST API routes
 
+use super::AppState;
+use crate::rules::{default_rules, Rule, RuleAction};
+use crate::RiskLevel;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -7,9 +10,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::rules::{Rule, RuleAction, default_rules};
-use crate::RiskLevel;
-use super::AppState;
 
 // ============================================================================
 // Status & Stats
@@ -23,9 +23,7 @@ pub struct StatusResponse {
     pub monitoring: Vec<String>,
 }
 
-pub async fn get_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<StatusResponse> {
+pub async fn get_status(State(state): State<Arc<AppState>>) -> Json<StatusResponse> {
     let uptime = chrono::Utc::now()
         .signed_duration_since(state.started_at)
         .num_seconds()
@@ -51,9 +49,7 @@ pub struct StatsResponse {
     pub passed_count: u64,
 }
 
-pub async fn get_stats(
-    State(state): State<Arc<AppState>>,
-) -> Json<StatsResponse> {
+pub async fn get_stats(State(state): State<Arc<AppState>>) -> Json<StatsResponse> {
     let rules = state.rules.read().await;
     let counters = state.counters.read().await;
 
@@ -75,9 +71,7 @@ pub struct ProviderStats {
     pub request_count: u64,
 }
 
-pub async fn get_stats_by_provider(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<ProviderStats>> {
+pub async fn get_stats_by_provider(State(state): State<Arc<AppState>>) -> Json<Vec<ProviderStats>> {
     let counters = state.counters.read().await;
     let stats: Vec<ProviderStats> = counters
         .by_provider
@@ -135,9 +129,7 @@ pub async fn get_events(
     })
 }
 
-pub async fn get_recent_events(
-    State(_state): State<Arc<AppState>>,
-) -> Json<Vec<EventResponse>> {
+pub async fn get_recent_events(State(_state): State<Arc<AppState>>) -> Json<Vec<EventResponse>> {
     // TODO: Get last 20 events from database
     Json(vec![])
 }
@@ -190,9 +182,7 @@ const PRESET_RULE_NAMES: &[&str] = &[
     "npm_install",
 ];
 
-pub async fn get_rules(
-    State(state): State<Arc<AppState>>,
-) -> Json<Vec<RuleResponse>> {
+pub async fn get_rules(State(state): State<Arc<AppState>>) -> Json<Vec<RuleResponse>> {
     let rules = state.rules.read().await;
     Json(
         rules
@@ -213,7 +203,9 @@ pub struct CreateRuleRequest {
     pub enabled: bool,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 fn parse_risk_level(s: &str) -> RiskLevel {
     match s.to_lowercase().as_str() {
@@ -280,7 +272,10 @@ pub async fn update_rule(
     Json(body): Json<UpdateRuleRequest>,
 ) -> Result<Json<RuleResponse>, StatusCode> {
     let mut rules = state.rules.write().await;
-    let rule = rules.iter_mut().find(|r| r.name == name).ok_or(StatusCode::NOT_FOUND)?;
+    let rule = rules
+        .iter_mut()
+        .find(|r| r.name == name)
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     // Block modification of protected (self-protection) rules
     if rule.protected {
@@ -383,9 +378,7 @@ pub struct ProxyStatusResponse {
     pub uptime_seconds: u64,
 }
 
-pub async fn get_proxy_status(
-    State(state): State<Arc<AppState>>,
-) -> Json<ProxyStatusResponse> {
+pub async fn get_proxy_status(State(state): State<Arc<AppState>>) -> Json<ProxyStatusResponse> {
     let config = state.proxy_config.read().await;
     let uptime = chrono::Utc::now()
         .signed_duration_since(state.started_at)
@@ -447,9 +440,7 @@ pub struct ProviderResponse {
     pub target_url: String,
 }
 
-pub async fn get_providers(
-    State(_state): State<Arc<AppState>>,
-) -> Json<Vec<ProviderResponse>> {
+pub async fn get_providers(State(_state): State<Arc<AppState>>) -> Json<Vec<ProviderResponse>> {
     Json(vec![
         ProviderResponse {
             name: "Anthropic".to_string(),
@@ -487,26 +478,38 @@ pub struct AlertConfigResponse {
     pub notify_on_info: bool,
 }
 
-pub async fn get_alert_config(
-    State(_state): State<Arc<AppState>>,
-) -> Json<AlertConfigResponse> {
+pub async fn get_alert_config(State(_state): State<Arc<AppState>>) -> Json<AlertConfigResponse> {
     // Check env vars first, then config file
-    let token = std::env::var("OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN").ok();
-    let chat_id = std::env::var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID").ok();
 
+    let token = std::env::var("OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN")
+        .or_else(|_| std::env::var("SAFEBOT_TELEGRAM_BOT_TOKEN"))
+        .ok();
+    let chat_id = std::env::var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID")
+        .or_else(|_| std::env::var("SAFEBOT_TELEGRAM_CHAT_ID"))
+        .ok();
     // Try loading from config file
     let file_config = load_alert_config_from_file();
 
-    let tg_token = token.or(file_config.as_ref().and_then(|c| c.telegram_bot_token.clone()));
-    let tg_chat = chat_id.or(file_config.as_ref().and_then(|c| c.telegram_chat_id.clone()));
+    let tg_token = token.or(file_config
+        .as_ref()
+        .and_then(|c| c.telegram_bot_token.clone()));
+    let tg_chat = chat_id.or(file_config
+        .as_ref()
+        .and_then(|c| c.telegram_chat_id.clone()));
 
     Json(AlertConfigResponse {
         telegram_enabled: tg_token.is_some(),
         telegram_bot_token: tg_token.map(|t| mask_token(&t)),
         telegram_chat_id: tg_chat,
-        slack_enabled: file_config.as_ref().map(|c| c.slack_enabled).unwrap_or(false),
+        slack_enabled: file_config
+            .as_ref()
+            .map(|c| c.slack_enabled)
+            .unwrap_or(false),
         slack_webhook: file_config.as_ref().and_then(|c| c.slack_webhook.clone()),
-        discord_enabled: file_config.as_ref().map(|c| c.discord_enabled).unwrap_or(false),
+        discord_enabled: file_config
+            .as_ref()
+            .map(|c| c.discord_enabled)
+            .unwrap_or(false),
         discord_webhook: file_config.as_ref().and_then(|c| c.discord_webhook.clone()),
         notify_on_critical: true,
         notify_on_warning: true,
@@ -541,7 +544,7 @@ fn mask_token(token: &str) -> String {
     if token.len() <= 8 {
         "****".to_string()
     } else {
-        format!("{}****{}", &token[..4], &token[token.len()-4..])
+        format!("{}****{}", &token[..4], &token[token.len() - 4..])
     }
 }
 

@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  harness:
+    build: .
+    ports:
+      - "8380:8380"
+    volumes:
+      - ./config:/app/config
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped

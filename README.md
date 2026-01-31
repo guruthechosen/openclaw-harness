@@ -8,7 +8,7 @@
 [![Node](https://img.shields.io/badge/node-20+-green.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-BSL_1.1-blue.svg)](LICENSE)
 
-[Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Rule Types](#-3-rule-types) · [Self-Protection](#-self-protection) · [Templates](#available-templates-25) · [API Reference](#-api-reference)
+[Quick Start](#-quick-start) · [Docker](#-docker) · [How It Works](#-how-it-works) · [Rule Types](#-3-rule-types) · [Self-Protection](#-self-protection) · [Templates](#available-templates-25) · [API Reference](#-api-reference)
 
 </div>
 
@@ -80,6 +80,29 @@ Think of it as a firewall for AI agents.
 
 ---
 
+## 🐳 Docker
+
+The fastest way to try OpenClaw Harness:
+
+```bash
+# One command — builds and runs everything
+docker compose up --build
+
+# Or manually
+docker build -t openclaw-harness .
+docker run -p 8380:8380 openclaw-harness
+```
+
+Dashboard at [http://localhost:8380](http://localhost:8380). Edit `config/rules.yaml` to customize rules.
+
+```bash
+# Test a rule
+docker exec <container> openclaw-harness test dangerous_rm "rm -rf /"
+# ✅ MATCH — Risk Level: Critical
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -88,7 +111,7 @@ Think of it as a firewall for AI agents.
 |-------------|---------|---------|
 | [Rust](https://rustup.rs/) | 1.75+ | Backend & rule engine |
 | [Node.js](https://nodejs.org/) | 20+ | Web Dashboard (optional) |
-| [OpenClaw](https://github.com/openclaw/openclaw) | 2026.1.29+ | AI agent to protect (see compatibility below) |
+| [OpenClaw](https://github.com/openclaw/openclaw) | 2026.1.29–2026.1.30 | AI agent to protect (see compatibility below) |
 
 ### ⚠️ OpenClaw Version Compatibility
 
@@ -98,11 +121,12 @@ OpenClaw Harness patches OpenClaw's `bash-tools.exec.js` to inject the `before_t
 
 | OpenClaw Harness Version | Compatible Versions | Patch Target | Status |
 |-----------------|------------------------------|--------------|--------|
-| 0.3.x | **OpenClaw 2026.1.29+** | `bash-tools.exec.js` + `pi-tools.js` (exec/write/edit) | ✅ Current |
+| 0.3.x | **OpenClaw 2026.1.29–2026.1.30** | `bash-tools.exec.js` + `pi-tools.js` (exec/write/edit) | ✅ Current |
 | 0.2.x | **OpenClaw 2026.1.29+** | `bash-tools.exec.js` (exec tool only) | ⚠️ Legacy |
 | 0.1.x | Clawdbot 2026.1.24-3 (legacy) | `bash-tools.exec.js` (exec tool) | ⚠️ Legacy |
 
 **Supported OpenClaw versions (tested):**
+- ✅ **2026.1.30** — Fully tested, anchor intact, hook-runner-global.js at same path
 - ✅ **2026.1.29** — Fully tested, anchor intact, hook-runner-global.js at same path
 - ⚠️ **2026.1.24-3** (Clawdbot) — Legacy support via backward-compatible detection
 

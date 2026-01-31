@@ -4,7 +4,7 @@
 //!   - `dist/agents/bash-tools.exec.js` — exec tool hook (v1)
 //!   - `dist/agents/pi-tools.js` — write/edit tool hooks (v2)
 //!
-//! Supports both OpenClaw (2026.1.29+) and legacy Clawdbot (2026.1.24-3).
+//! Supports both OpenClaw (2026.1.29+, including 2026.1.30) and legacy Clawdbot (2026.1.24-3).
 
 use anyhow::{bail, Context, Result};
 use std::fs;
@@ -235,7 +235,7 @@ pub fn is_v2_patched(dist: &Path) -> Result<bool> {
 // Version detection
 // ============================================================
 
-const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29"];
+const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29", "2026.1.30"];
 
 pub fn detect_clawdbot_version() -> Option<String> {
     for bin_name in &["openclaw", "clawdbot"] {

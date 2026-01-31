@@ -1,1 +1,0 @@
-cargo:rustc-env=MIME_TYPES_GENERATED_PATH=/Volumes/formac/proj/safebot/target/release/build/mime_guess-9c1bdbe4a441b7bf/out/mime_types_generated.rs

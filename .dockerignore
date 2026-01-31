@@ -1,0 +1,8 @@
+target/
+ui/node_modules/
+ui/dist/
+.git/
+demo/
+*.md
+!README.md
+.DS_Store

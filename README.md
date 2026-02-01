@@ -256,37 +256,109 @@ The command never executes. The agent receives an error and can choose a safer a
 
 ## 🚀 Auto-Start on Boot
 
-### macOS (launchd)
+The daemon should run continuously so the plugin can check commands in real-time. You have two options:
+
+**Option A: Manual start** — Just run the daemon yourself when you need it:
 
 ```bash
-cat > ~/Library/LaunchAgents/com.openclaw-harness.plist << 'EOF'
+openclaw-harness start              # Background mode
+openclaw-harness start --foreground  # Foreground (Ctrl+C to stop)
+```
+
+> When the daemon is not running, the plugin falls back to hardcoded self-protection rules only. Safe commands always pass through.
+
+**Option B: System service** — Auto-start on boot (recommended for always-on protection):
+
+### macOS (launchd)
+
+**Step 1: Create a launcher script** (recommended — avoids permission issues with external drives):
+
+```bash
+mkdir -p ~/.local/bin
+cat > ~/.local/bin/openclaw-harness-launcher.sh << 'EOF'
+#!/bin/bash
+cd /path/to/openclaw-harness
+exec ./target/release/openclaw-harness start --foreground
+EOF
+chmod +x ~/.local/bin/openclaw-harness-launcher.sh
+```
+
+**Step 2: Create the launchd plist:**
+
+```bash
+cat > ~/Library/LaunchAgents/com.openclaw.harness.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.openclaw-harness</string>
+    <string>com.openclaw.harness</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/path/to/openclaw-harness</string>
-        <string>start</string>
-        <string>--foreground</string>
+        <string>/bin/bash</string>
+        <string>/Users/YOUR_USER/.local/bin/openclaw-harness-launcher.sh</string>
     </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN</key>
+        <string>your_bot_token</string>
+        <key>OPENCLAW_HARNESS_TELEGRAM_CHAT_ID</key>
+        <string>your_chat_id</string>
+    </dict>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
     <key>StandardOutPath</key>
     <string>/tmp/openclaw-harness.log</string>
     <key>StandardErrorPath</key>
     <string>/tmp/openclaw-harness.err</string>
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
 </dict>
 </plist>
 EOF
-
-launchctl load ~/Library/LaunchAgents/com.openclaw-harness.plist
 ```
+
+**Step 3: Load the service:**
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.openclaw.harness.plist
+```
+
+**Manage the daemon:**
+
+```bash
+# Check status
+curl -s http://127.0.0.1:8380/api/status
+
+# Stop the daemon (stays off until manually started or reboot)
+launchctl unload ~/Library/LaunchAgents/com.openclaw.harness.plist
+
+# Start the daemon
+launchctl load ~/Library/LaunchAgents/com.openclaw.harness.plist
+
+# View logs
+tail -f /tmp/openclaw-harness.log
+tail -f /tmp/openclaw-harness.err
+```
+
+**Optional: Shell aliases** (add to `~/.zshrc` or `~/.bashrc`):
+
+```bash
+alias harness-start="launchctl load ~/Library/LaunchAgents/com.openclaw.harness.plist"
+alias harness-stop="launchctl unload ~/Library/LaunchAgents/com.openclaw.harness.plist"
+alias harness-status="curl -s http://127.0.0.1:8380/api/status | python3 -m json.tool 2>/dev/null || echo '🔴 Stopped'"
+alias harness-log="tail -f /tmp/openclaw-harness.log"
+```
+
+Then just use: `harness-start`, `harness-stop`, `harness-status`, `harness-log`
+
+> **Note:** If the binary is on an external drive, use a launcher script on the local disk (`~/.local/bin/`) to avoid "Operation not permitted" errors from launchd.
 
 ### Linux (systemd)
 
@@ -298,8 +370,9 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/path/to/openclaw-harness start --foreground
-Restart=always
+WorkingDirectory=/path/to/openclaw-harness
+ExecStart=/path/to/openclaw-harness/target/release/openclaw-harness start --foreground
+Restart=on-failure
 RestartSec=5
 Environment=OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN=your_token
 Environment=OPENCLAW_HARNESS_TELEGRAM_CHAT_ID=your_chat_id
@@ -311,6 +384,42 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now openclaw-harness
 ```
+
+**Manage the daemon:**
+
+```bash
+# Check status
+sudo systemctl status openclaw-harness
+
+# Stop (stays off until manually started or reboot)
+sudo systemctl stop openclaw-harness
+
+# Start
+sudo systemctl start openclaw-harness
+
+# Disable auto-start on boot
+sudo systemctl disable openclaw-harness
+```
+
+### Uninstall the service
+
+If you prefer not to run the daemon as a system service:
+
+**macOS:**
+```bash
+launchctl unload ~/Library/LaunchAgents/com.openclaw.harness.plist
+rm ~/Library/LaunchAgents/com.openclaw.harness.plist
+rm ~/.local/bin/openclaw-harness-launcher.sh  # if created
+```
+
+**Linux:**
+```bash
+sudo systemctl disable --now openclaw-harness
+sudo rm /etc/systemd/system/openclaw-harness.service
+sudo systemctl daemon-reload
+```
+
+You can still run the daemon manually anytime with `openclaw-harness start`.
 
 ---
 

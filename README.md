@@ -224,17 +224,14 @@ These cannot be disabled — they prevent the AI agent from tampering with the h
 
 ## 🔌 OpenClaw Plugin
 
-The harness includes a native OpenClaw plugin for seamless integration:
+> **📦 The plugin has been split into its own repository: [openclaw-harness-plugin](https://github.com/sparkishy/openclaw-harness-plugin)**
 
 ```bash
 # Install the plugin
-openclaw plugins install /path/to/openclaw-harness/openclaw-plugin
-
-# Or symlink for development
-openclaw plugins install -l /path/to/openclaw-harness/openclaw-plugin
+openclaw plugins install @openclaw/harness-guard
 ```
 
-See [openclaw-plugin/README.md](openclaw-plugin/README.md) for configuration details.
+The plugin works in **Standalone** mode (built-in rules only) or **Connected** mode (full features when paired with this daemon). See the [plugin repo](https://github.com/sparkishy/openclaw-harness-plugin) for details.
 
 ---
 

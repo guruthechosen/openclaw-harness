@@ -1,32 +1,47 @@
 # @openclaw/harness-guard
 
-Clawdbot plugin that intercepts `exec` tool calls and checks them against [OpenClaw Harness](https://github.com/sparkishy/openclaw-harness) rules before execution.
+OpenClaw plugin that intercepts tool calls and blocks dangerous commands using [OpenClaw Harness](https://github.com/sparkishy/openclaw-harness) rules.
 
 ## How It Works
 
-1. Hooks into Clawdbot's `before_tool_call` lifecycle
-2. Fetches rules from OpenClaw Harness Web API (cached)
-3. Matches the exec command against each rule's regex pattern
-4. Based on rule action:
-   - **CriticalAlert / PauseAndAsk** → blocks execution, returns error
-   - **Alert / LogOnly** → logs warning, allows execution
-5. Optionally sends Telegram notifications on matches
+```
+Agent calls exec("rm -rf /")
+       │
+       ▼
+  before_tool_call hook
+       │
+       ▼
+  Fetch rules from Harness API (cached)
+       │
+       ▼
+  Match against 35+ rules
+       │
+       ├─ MATCH (critical/block) → ❌ Block execution, return error
+       └─ NO MATCH → ✅ Allow execution
+```
 
 ## Install
 
 ```bash
-clawdbot plugins install /path/to/openclaw-harness/clawdbot-plugin
+# Install from local path
+openclaw plugins install /path/to/openclaw-harness/openclaw-plugin
+
+# Or symlink for development
+openclaw plugins install -l /path/to/openclaw-harness/openclaw-plugin
 ```
 
-Or link for development:
+## Prerequisites
+
+OpenClaw Harness daemon must be running:
 
 ```bash
-clawdbot plugins install -l /path/to/openclaw-harness/clawdbot-plugin
+openclaw-harness start --foreground
+# Dashboard available at http://localhost:8380
 ```
 
-## Configure
+## Configuration
 
-In your Clawdbot config (`~/.clawdbot/config.json`):
+Add to your OpenClaw config (`~/.openclaw/config.json`):
 
 ```json5
 {
@@ -39,10 +54,7 @@ In your Clawdbot config (`~/.clawdbot/config.json`):
           apiUrl: "http://localhost:8380",
           blockDangerous: true,
           alertOnly: false,
-          cacheTtlSeconds: 30,
-          // Optional Telegram notifications
-          telegramBotToken: "123456:ABC...",
-          telegramChatId: "-100123456789"
+          cacheTtlSeconds: 30
         }
       }
     }
@@ -50,28 +62,30 @@ In your Clawdbot config (`~/.clawdbot/config.json`):
 }
 ```
 
-### Config Options
+### Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `enabled` | `true` | Enable/disable the guard |
-| `apiUrl` | `http://localhost:8380` | OpenClaw Harness API URL |
-| `blockDangerous` | `true` | Block commands matching CriticalAlert/PauseAndAsk rules |
-| `alertOnly` | `false` | Log only, never block (overrides blockDangerous) |
-| `cacheTtlSeconds` | `30` | How long to cache rules before re-fetching |
-| `telegramBotToken` | - | Telegram bot token for alerts |
-| `telegramChatId` | - | Telegram chat ID for alerts |
+| `apiUrl` | `http://localhost:8380` | Harness API URL |
+| `blockDangerous` | `true` | Block commands matching critical rules |
+| `alertOnly` | `false` | Log only, never block |
+| `cacheTtlSeconds` | `30` | Rule cache TTL |
+| `telegramBotToken` | — | Optional: Telegram bot token for direct alerts |
+| `telegramChatId` | — | Optional: Telegram chat ID |
 
-## Requirements
+## Verify It Works
 
-- OpenClaw Harness running with Web UI at the configured `apiUrl`
-- Rules configured in OpenClaw Harness dashboard
+```bash
+# With the harness running, try a blocked command in OpenClaw:
+# > exec("rm -rf /")
+# ❌ Blocked by OpenClaw Harness: dangerous_rm (Critical)
+```
 
-## How Rules Work
+## Troubleshooting
 
-Rules are managed in OpenClaw Harness Web Dashboard. Each rule has:
-- **Pattern**: regex to match against exec commands
-- **Action**: CriticalAlert, PauseAndAsk, Alert, or LogOnly
-- **Risk Level**: severity classification
-
-When you add/edit rules in the dashboard, the plugin picks them up automatically (within cache TTL).
+| Problem | Solution |
+|---------|----------|
+| Plugin not loading | Check `openclaw plugins list` — is `harness-guard` listed? |
+| Commands not blocked | Is the harness daemon running? (`curl http://localhost:8380/api/health`) |
+| Stale rules | Reduce `cacheTtlSeconds` or restart the plugin |

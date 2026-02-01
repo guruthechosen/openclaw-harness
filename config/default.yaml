@@ -1,0 +1,82 @@
+# OpenClaw Harness — Default Configuration
+#
+# Copy to ~/.openclaw-harness/config.yaml and customize.
+# Environment variables: use ${VAR_NAME} syntax.
+
+# ──────────────────────────────────────────
+# Collectors
+# ──────────────────────────────────────────
+collectors:
+  openclaw: true
+  claude_code: true
+  cursor: false
+
+# ──────────────────────────────────────────
+# Alert Channels
+# ──────────────────────────────────────────
+alerts:
+  telegram:
+    enabled: true
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+
+  slack:
+    enabled: false
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+
+  discord:
+    enabled: false
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+
+# ──────────────────────────────────────────
+# Web Dashboard
+# ──────────────────────────────────────────
+web:
+  port: 8380
+  bind: "127.0.0.1"
+
+# ──────────────────────────────────────────
+# Database
+# ──────────────────────────────────────────
+database:
+  path: "~/.openclaw-harness/openclaw-harness.db"
+  log_retention_days: 30
+
+# ──────────────────────────────────────────
+# Rule Engine
+# ──────────────────────────────────────────
+rules:
+  # Path to custom rules file
+  custom_rules_path: "~/.openclaw-harness/rules.yaml"
+
+  # Enable AI-assisted risk analysis (requires local LLM)
+  ai_assist: false
+  ai_model: "llama3:8b"
+
+  # ── Default rules (9 essential rules) ───
+  # These are always loaded. Override by defining the same
+  # rule name in your custom_rules_path file.
+  defaults:
+    - dangerous_rm          # Block rm -rf /
+    - api_key_exposure      # Block API key leaks
+    - ssh_key_access        # Block SSH key theft
+    - wallet_access         # Block crypto wallet access
+    - env_secrets           # Block .env file reads
+    - system_config         # Block /etc/ modifications
+    - sudo_command          # Pause on sudo
+    - block_exfiltration    # Block curl/wget uploads
+    - protect_secrets_rule  # Protect tokens & credentials
+
+# ──────────────────────────────────────────
+# Performance
+# ──────────────────────────────────────────
+performance:
+  rate_limit: 100
+  buffer_size: 1000
+
+# ──────────────────────────────────────────
+# Logging
+# ──────────────────────────────────────────
+logging:
+  level: "info"   # debug | info | warn | error
+  file: "~/.openclaw-harness/openclaw-harness.log"

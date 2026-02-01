@@ -358,6 +358,8 @@ alias harness-log="tail -f /tmp/openclaw-harness.log"
 
 Then just use: `harness-start`, `harness-stop`, `harness-status`, `harness-log`
 
+> **⚠️ Important:** If the daemon is registered as a launchd service, do **not** use `openclaw-harness stop` to shut it down — launchd will automatically restart it. Use `harness-stop` (or `launchctl unload ...`) instead, which stops the service and prevents auto-restart.
+
 > **Note:** If the binary is on an external drive, use a launcher script on the local disk (`~/.local/bin/`) to avoid "Operation not permitted" errors from launchd.
 
 ### Linux (systemd)

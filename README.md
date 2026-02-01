@@ -10,6 +10,8 @@
 
 [Quick Start](#-quick-start) · [Docker](#-docker) · [How It Works](#-how-it-works) · [Rule Types](#-3-rule-types) · [Self-Protection](#-self-protection) · [Templates](#available-templates-25) · [API Reference](#-api-reference)
 
+<img src="demo/demo.gif" alt="OpenClaw Harness Demo" width="800" />
+
 </div>
 
 ---

@@ -283,3 +283,17 @@
   action: block
   enabled: true
 
+
+# ============================================
+# Infrastructure Rules
+# ============================================
+
+- name: terraform_apply
+  description: "Block terraform apply - requires human approval for infrastructure changes"
+  match_type: keyword
+  keyword:
+    contains: ["terraform", "apply"]
+  applies_to: [exec]
+  risk_level: critical
+  action: critical_alert
+  enabled: true

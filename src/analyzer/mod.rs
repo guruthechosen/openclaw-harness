@@ -3,11 +3,11 @@
 //! Analyzes incoming actions against configured rules
 //! and produces risk assessments.
 
-pub mod rule_engine;
 pub mod risk_scorer;
+pub mod rule_engine;
 
-use super::{AgentAction, AnalysisResult, RiskLevel, Recommendation};
 use super::rules::Rule;
+use super::{AgentAction, AnalysisResult, Recommendation, RiskLevel};
 
 /// The main analyzer that processes actions
 pub struct Analyzer {
@@ -29,7 +29,7 @@ impl Analyzer {
         for rule in &self.rules {
             if rule.matches(action) {
                 matched_rules.push(rule.name.clone());
-                
+
                 if rule.risk_level > highest_risk {
                     highest_risk = rule.risk_level;
                 }
@@ -38,19 +38,28 @@ impl Analyzer {
                     crate::rules::RuleAction::CriticalAlert => {
                         recommendation = Recommendation::CriticalAlert;
                     }
-                    crate::rules::RuleAction::Block if recommendation != Recommendation::CriticalAlert => {
+                    crate::rules::RuleAction::Block
+                        if recommendation != Recommendation::CriticalAlert =>
+                    {
                         recommendation = Recommendation::CriticalAlert;
                     }
-                    crate::rules::RuleAction::PauseAndAsk if recommendation != Recommendation::CriticalAlert => {
+                    crate::rules::RuleAction::PauseAndAsk
+                        if recommendation != Recommendation::CriticalAlert =>
+                    {
                         recommendation = Recommendation::PauseAndAsk;
                     }
-                    crate::rules::RuleAction::Alert if recommendation == Recommendation::LogOnly => {
+                    crate::rules::RuleAction::Alert
+                        if recommendation == Recommendation::LogOnly =>
+                    {
                         recommendation = Recommendation::Alert;
                     }
                     _ => {}
                 }
 
-                explanations.push(format!("Matched rule: {} - {}", rule.name, rule.description));
+                explanations.push(format!(
+                    "Matched rule: {} - {}",
+                    rule.name, rule.description
+                ));
             }
         }
 
@@ -78,7 +87,7 @@ impl Analyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AgentType, ActionType};
+    use crate::{ActionType, AgentType};
     use chrono::Utc;
 
     #[test]

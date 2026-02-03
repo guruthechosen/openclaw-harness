@@ -5,7 +5,7 @@
 //! 2. Keyword - simple string matching (contains, starts_with, ends_with, glob, any_of)
 //! 3. Template - predefined scenario templates with parameters
 
-use super::{AgentAction, ActionType, RiskLevel};
+use super::{ActionType, AgentAction, RiskLevel};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -272,7 +272,10 @@ impl Rule {
 
         // contains: ALL must be present
         if !kw.contains.is_empty() {
-            let all_found = kw.contains.iter().all(|s| text_lower.contains(&s.to_lowercase()));
+            let all_found = kw
+                .contains
+                .iter()
+                .all(|s| text_lower.contains(&s.to_lowercase()));
             if !all_found {
                 return false;
             }
@@ -280,9 +283,10 @@ impl Rule {
 
         // starts_with: at least one must match
         if !kw.starts_with.is_empty() {
-            let any_match = kw.starts_with.iter().any(|s| {
-                content.starts_with(s) || content.starts_with(&s.to_lowercase())
-            });
+            let any_match = kw
+                .starts_with
+                .iter()
+                .any(|s| content.starts_with(s) || content.starts_with(&s.to_lowercase()));
             if !any_match {
                 return false;
             }
@@ -290,9 +294,10 @@ impl Rule {
 
         // ends_with: at least one must match
         if !kw.ends_with.is_empty() {
-            let any_match = kw.ends_with.iter().any(|s| {
-                content.ends_with(s) || content.ends_with(&s.to_lowercase())
-            });
+            let any_match = kw
+                .ends_with
+                .iter()
+                .any(|s| content.ends_with(s) || content.ends_with(&s.to_lowercase()));
             if !any_match {
                 return false;
             }
@@ -300,9 +305,10 @@ impl Rule {
 
         // glob: at least one must match
         if !self.compiled_globs.is_empty() {
-            let any_match = self.compiled_globs.iter().any(|g| {
-                g.matches(&text) || g.matches(content) || g.matches(target)
-            });
+            let any_match = self
+                .compiled_globs
+                .iter()
+                .any(|g| g.matches(&text) || g.matches(content) || g.matches(target));
             if !any_match {
                 return false;
             }
@@ -310,7 +316,10 @@ impl Rule {
 
         // any_of: at least one keyword must be present
         if !kw.any_of.is_empty() {
-            let any_found = kw.any_of.iter().any(|s| text_lower.contains(&s.to_lowercase()));
+            let any_found = kw
+                .any_of
+                .iter()
+                .any(|s| text_lower.contains(&s.to_lowercase()));
             if !any_found {
                 return false;
             }
@@ -378,10 +387,7 @@ impl Rule {
 
         let (patterns, applies_to, description) = template_def.expand(&params);
 
-        self.expanded_patterns = patterns
-            .iter()
-            .filter_map(|p| Regex::new(p).ok())
-            .collect();
+        self.expanded_patterns = patterns.iter().filter_map(|p| Regex::new(p).ok()).collect();
 
         if self.applies_to.is_empty() {
             self.applies_to = applies_to;
@@ -433,7 +439,11 @@ fn expand_protect_path(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>
     let mut action_types = Vec::new();
 
     let ops = if params.operations.is_empty() {
-        vec!["read".to_string(), "write".to_string(), "delete".to_string()]
+        vec![
+            "read".to_string(),
+            "write".to_string(),
+            "delete".to_string(),
+        ]
     } else {
         params.operations.clone()
     };
@@ -442,7 +452,10 @@ fn expand_protect_path(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>
         let p = path_to_regex(path);
         patterns.push(p.clone());
         // Also catch commands that reference the path
-        patterns.push(format!(r"(cat|less|head|tail|vi|vim|nano|code|open)\s+.*{}", p));
+        patterns.push(format!(
+            r"(cat|less|head|tail|vi|vim|nano|code|open)\s+.*{}",
+            p
+        ));
         patterns.push(format!(r"(rm|mv|cp|chmod|chown)\s+.*{}", p));
     }
 
@@ -456,7 +469,11 @@ fn expand_protect_path(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>
     }
     action_types.push(ActionType::Exec);
 
-    let desc = format!("Protect path: {} (ops: {})", paths.join(", "), ops.join(", "));
+    let desc = format!(
+        "Protect path: {} (ops: {})",
+        paths.join(", "),
+        ops.join(", ")
+    );
     (patterns, action_types, desc)
 }
 
@@ -469,7 +486,11 @@ fn expand_prevent_delete(params: &TemplateParams) -> (Vec<String>, Vec<ActionTyp
         patterns.push(format!(r"shred\s+.*{}", p));
     }
     let desc = format!("Prevent delete: {}", paths.join(", "));
-    (patterns, vec![ActionType::Exec, ActionType::FileDelete], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::FileDelete],
+        desc,
+    )
 }
 
 fn expand_prevent_overwrite(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
@@ -481,7 +502,11 @@ fn expand_prevent_overwrite(params: &TemplateParams) -> (Vec<String>, Vec<Action
         patterns.push(p.clone());
     }
     let desc = format!("Prevent overwrite: {}", paths.join(", "));
-    (patterns, vec![ActionType::Exec, ActionType::FileWrite], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::FileWrite],
+        desc,
+    )
 }
 
 fn expand_block_hidden_files(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
@@ -497,7 +522,15 @@ fn expand_block_hidden_files(_params: &TemplateParams) -> (Vec<String>, Vec<Acti
         r"\.gitconfig".to_string(),
     ];
     let desc = "Block access to hidden/secret files (.env, .ssh, .aws, etc.)".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::FileRead, ActionType::FileWrite], desc)
+    (
+        patterns,
+        vec![
+            ActionType::Exec,
+            ActionType::FileRead,
+            ActionType::FileWrite,
+        ],
+        desc,
+    )
 }
 
 fn expand_block_command(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
@@ -526,7 +559,9 @@ fn expand_block_sudo(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>,
     (patterns, vec![ActionType::Exec], desc)
 }
 
-fn expand_block_package_install(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_block_package_install(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"(apt|apt-get)\s+(install|remove|purge)".to_string(),
         r"brew\s+(install|uninstall|remove)".to_string(),
@@ -542,7 +577,9 @@ fn expand_block_package_install(_params: &TemplateParams) -> (Vec<String>, Vec<A
     (patterns, vec![ActionType::Exec], desc)
 }
 
-fn expand_block_service_control(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_block_service_control(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"systemctl\s+(start|stop|restart|enable|disable|mask)".to_string(),
         r"service\s+\S+\s+(start|stop|restart)".to_string(),
@@ -587,7 +624,11 @@ fn expand_prevent_exfiltration(_params: &TemplateParams) -> (Vec<String>, Vec<Ac
         r"base64.*\|\s*(curl|wget|nc)".to_string(),
     ];
     let desc = "Prevent data exfiltration (POST, scp, rsync, etc.)".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::HttpRequest], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::HttpRequest],
+        desc,
+    )
 }
 
 fn expand_protect_secrets(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
@@ -599,7 +640,15 @@ fn expand_protect_secrets(_params: &TemplateParams) -> (Vec<String>, Vec<ActionT
         r"Bearer\s+[a-zA-Z0-9\-._~+/]+=*".to_string(),
     ];
     let desc = "Protect secrets (API keys, tokens, passwords)".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::FileWrite, ActionType::HttpRequest], desc)
+    (
+        patterns,
+        vec![
+            ActionType::Exec,
+            ActionType::FileWrite,
+            ActionType::HttpRequest,
+        ],
+        desc,
+    )
 }
 
 fn expand_protect_database(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
@@ -625,10 +674,16 @@ fn expand_protect_git(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>
         r"git\s+clean\s+-fd".to_string(),
     ];
     let desc = "Protect git (block force push, branch delete, hard reset)".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::GitOperation], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::GitOperation],
+        desc,
+    )
 }
 
-fn expand_protect_system_config(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_protect_system_config(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"(vi|vim|nano|sed|tee|cat\s*>)\s+.*/etc/".to_string(),
         r"(chmod|chown)\s+.*/etc/".to_string(),
@@ -637,10 +692,16 @@ fn expand_protect_system_config(_params: &TemplateParams) -> (Vec<String>, Vec<A
         r"/etc/(ssh/sshd_config|resolv\.conf|nsswitch\.conf)".to_string(),
     ];
     let desc = "Protect system config files (/etc/*, shell rc files)".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::FileWrite], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::FileWrite],
+        desc,
+    )
 }
 
-fn expand_block_disk_operations(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_block_disk_operations(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"(mkfs|fdisk|parted|gdisk|diskutil)\s+".to_string(),
         r"dd\s+.*of=/dev/".to_string(),
@@ -651,7 +712,9 @@ fn expand_block_disk_operations(_params: &TemplateParams) -> (Vec<String>, Vec<A
     (patterns, vec![ActionType::Exec], desc)
 }
 
-fn expand_block_user_management(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_block_user_management(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"(useradd|userdel|usermod|adduser|deluser)\s+".to_string(),
         r"(groupadd|groupdel|groupmod)\s+".to_string(),
@@ -664,7 +727,9 @@ fn expand_block_user_management(_params: &TemplateParams) -> (Vec<String>, Vec<A
     (patterns, vec![ActionType::Exec], desc)
 }
 
-fn expand_block_cron_modification(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_block_cron_modification(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"crontab\s+(-e|-r|-l)".to_string(),
         r"(vi|vim|nano|tee)\s+.*/etc/cron".to_string(),
@@ -672,10 +737,16 @@ fn expand_block_cron_modification(_params: &TemplateParams) -> (Vec<String>, Vec
         r"(launchctl|systemctl)\s+.*timer".to_string(),
     ];
     let desc = "Block cron/scheduled task modification".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::FileWrite], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::FileWrite],
+        desc,
+    )
 }
 
-fn expand_block_firewall_changes(_params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
+fn expand_block_firewall_changes(
+    _params: &TemplateParams,
+) -> (Vec<String>, Vec<ActionType>, String) {
     let patterns = vec![
         r"(iptables|ip6tables|nft|nftables)\s+".to_string(),
         r"ufw\s+(allow|deny|delete|reset|disable)".to_string(),
@@ -684,7 +755,11 @@ fn expand_block_firewall_changes(_params: &TemplateParams) -> (Vec<String>, Vec<
         r"/etc/(ufw|iptables|nftables)".to_string(),
     ];
     let desc = "Block firewall changes (iptables, ufw, pf)".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::FileWrite], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::FileWrite],
+        desc,
+    )
 }
 
 fn expand_block_app(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
@@ -759,13 +834,25 @@ fn expand_block_dns_change(_params: &TemplateParams) -> (Vec<String>, Vec<Action
         r"systemd-resolve\s+".to_string(),
     ];
     let desc = "Block DNS configuration changes".to_string();
-    (patterns, vec![ActionType::Exec, ActionType::FileWrite], desc)
+    (
+        patterns,
+        vec![ActionType::Exec, ActionType::FileWrite],
+        desc,
+    )
 }
 
 // Fallback for unknown templates
 fn expand_unknown(params: &TemplateParams) -> (Vec<String>, Vec<ActionType>, String) {
-    let patterns: Vec<String> = params.patterns.iter().map(|p| escape_for_regex(p)).collect();
-    (patterns, vec![ActionType::Exec], "Unknown template".to_string())
+    let patterns: Vec<String> = params
+        .patterns
+        .iter()
+        .map(|p| escape_for_regex(p))
+        .collect();
+    (
+        patterns,
+        vec![ActionType::Exec],
+        "Unknown template".to_string(),
+    )
 }
 
 fn collect_paths(params: &TemplateParams) -> Vec<String> {

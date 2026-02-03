@@ -15,7 +15,10 @@ pub enum PatchMode {
 pub async fn run(target: &str, mode: PatchMode) -> Result<()> {
     match target {
         "openclaw" | "clawdbot" => run_openclaw(mode),
-        _ => bail!("Unknown patch target: '{}'. Supported: openclaw (or clawdbot)", target),
+        _ => bail!(
+            "Unknown patch target: '{}'. Supported: openclaw (or clawdbot)",
+            target
+        ),
     }
 }
 

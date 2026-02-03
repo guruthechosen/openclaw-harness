@@ -132,14 +132,15 @@ pub fn find_clawdbot_dist() -> Result<PathBuf> {
     }
 
     // Fallback: try common nvm path pattern
-    let nvm_base = dirs::home_dir()
-        .map(|h| h.join(".nvm/versions/node"));
+    let nvm_base = dirs::home_dir().map(|h| h.join(".nvm/versions/node"));
     if let Some(nvm_base) = nvm_base {
         if nvm_base.is_dir() {
             if let Ok(entries) = fs::read_dir(&nvm_base) {
                 for entry in entries.flatten() {
                     for pkg_name in &["openclaw", "clawdbot"] {
-                        let dist = entry.path().join(format!("lib/node_modules/{}/dist", pkg_name));
+                        let dist = entry
+                            .path()
+                            .join(format!("lib/node_modules/{}/dist", pkg_name));
                         if dist.is_dir() {
                             return Ok(dist);
                         }
@@ -216,8 +217,8 @@ pub fn is_patched(dist: &Path) -> Result<bool> {
     if !file.exists() {
         bail!("Exec tool file not found: {}", file.display());
     }
-    let content = fs::read_to_string(&file)
-        .with_context(|| format!("Cannot read {}", file.display()))?;
+    let content =
+        fs::read_to_string(&file).with_context(|| format!("Cannot read {}", file.display()))?;
     Ok(content.contains(PATCH_MARKER))
 }
 
@@ -227,8 +228,8 @@ pub fn is_v2_patched(dist: &Path) -> Result<bool> {
     if !file.exists() {
         bail!("pi-tools.js not found: {}", file.display());
     }
-    let content = fs::read_to_string(&file)
-        .with_context(|| format!("Cannot read {}", file.display()))?;
+    let content =
+        fs::read_to_string(&file).with_context(|| format!("Cannot read {}", file.display()))?;
     Ok(content.contains(PATCH_V2_MARKER))
 }
 
@@ -240,10 +241,7 @@ const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29", "2026.1.30"];
 
 pub fn detect_clawdbot_version() -> Option<String> {
     for bin_name in &["openclaw", "clawdbot"] {
-        let output = Command::new(bin_name)
-            .arg("--version")
-            .output()
-            .ok()?;
+        let output = Command::new(bin_name).arg("--version").output().ok()?;
         if output.status.success() {
             let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !version.is_empty() {
@@ -266,7 +264,10 @@ pub fn apply_patch(dist: &Path) -> Result<()> {
         if SUPPORTED_VERSIONS.contains(&version.as_str()) {
             println!("✅ Version {} is supported", version);
         } else {
-            println!("⚠️  Version {} is NOT in the tested list: {:?}", version, SUPPORTED_VERSIONS);
+            println!(
+                "⚠️  Version {} is NOT in the tested list: {:?}",
+                version, SUPPORTED_VERSIONS
+            );
             println!("   The patch may still work if the internal structure hasn't changed.");
             println!("   Proceeding with anchor check...");
         }
@@ -293,8 +294,8 @@ fn apply_v1_patch(dist: &Path) -> Result<()> {
         bail!("Exec tool file not found: {}", file.display());
     }
 
-    let content = fs::read_to_string(&file)
-        .with_context(|| format!("Cannot read {}", file.display()))?;
+    let content =
+        fs::read_to_string(&file).with_context(|| format!("Cannot read {}", file.display()))?;
 
     if content.contains(PATCH_MARKER) {
         println!("✅ [v1] exec hook already patched.");
@@ -319,11 +320,7 @@ fn apply_v1_patch(dist: &Path) -> Result<()> {
         println!("📦 [v1] Backed up original to {}", backup.display());
     }
 
-    let patched = content.replacen(
-        ANCHOR_TEXT,
-        &format!("{}{}", ANCHOR_TEXT, PATCH_CODE),
-        1,
-    );
+    let patched = content.replacen(ANCHOR_TEXT, &format!("{}{}", ANCHOR_TEXT, PATCH_CODE), 1);
 
     fs::write(&file, &patched)
         .with_context(|| format!("Cannot write patched file {}", file.display()))?;
@@ -335,12 +332,15 @@ fn apply_v1_patch(dist: &Path) -> Result<()> {
 fn apply_v2_patch(dist: &Path) -> Result<()> {
     let file = pi_tools_file(dist);
     if !file.exists() {
-        println!("⚠️  [v2] pi-tools.js not found: {}. Skipping write/edit patch.", file.display());
+        println!(
+            "⚠️  [v2] pi-tools.js not found: {}. Skipping write/edit patch.",
+            file.display()
+        );
         return Ok(());
     }
 
-    let content = fs::read_to_string(&file)
-        .with_context(|| format!("Cannot read {}", file.display()))?;
+    let content =
+        fs::read_to_string(&file).with_context(|| format!("Cannot read {}", file.display()))?;
 
     if content.contains(PATCH_V2_MARKER) {
         println!("✅ [v2] write/edit hooks already patched.");
@@ -348,7 +348,10 @@ fn apply_v2_patch(dist: &Path) -> Result<()> {
     }
 
     if !content.contains(WRITE_EDIT_ANCHOR) {
-        println!("⚠️  [v2] Cannot find write/edit anchor in {}.", file.display());
+        println!(
+            "⚠️  [v2] Cannot find write/edit anchor in {}.",
+            file.display()
+        );
         println!("   OpenClaw version may have changed the write/edit tool structure.");
         println!("   Skipping v2 patch. Exec hook (v1) still works.");
         return Ok(());
@@ -363,11 +366,7 @@ fn apply_v2_patch(dist: &Path) -> Result<()> {
     }
 
     // Replace the anchor with hooked version
-    let patched = content.replacen(
-        WRITE_EDIT_ANCHOR,
-        WRITE_EDIT_REPLACEMENT,
-        1,
-    );
+    let patched = content.replacen(WRITE_EDIT_ANCHOR, WRITE_EDIT_REPLACEMENT, 1);
 
     fs::write(&file, &patched)
         .with_context(|| format!("Cannot write patched file {}", file.display()))?;

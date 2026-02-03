@@ -7,11 +7,11 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     println!("📋 Recent Activity (last {} entries)", tail);
     println!("─────────────────────────────────────");
-    
+
     // TODO: Read from database
     // TODO: Apply filters
-    
+
     println!("\nNo logs available yet. Start the daemon to begin monitoring.");
-    
+
     Ok(())
 }

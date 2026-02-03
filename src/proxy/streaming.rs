@@ -3,8 +3,8 @@
 //! Buffers tool_use blocks until complete, then checks against rules.
 //! Text blocks and other events pass through immediately.
 
+use super::interceptor::{check_tool_use, ApiProvider, InterceptResult};
 use crate::rules::Rule;
-use super::interceptor::{check_tool_use, InterceptResult, ApiProvider};
 use crate::rules::RuleAction;
 use serde_json::Value;
 /// A parsed SSE event
@@ -99,7 +99,12 @@ impl StreamInterceptor {
         // Also detect from event_type field (Anthropic uses named events)
         if self.provider.is_none() {
             match event.event_type.as_str() {
-                "message_start" | "content_block_start" | "content_block_delta" | "content_block_stop" | "message_delta" | "message_stop" => {
+                "message_start"
+                | "content_block_start"
+                | "content_block_delta"
+                | "content_block_stop"
+                | "message_delta"
+                | "message_stop" => {
                     self.provider = Some(ApiProvider::Anthropic);
                 }
                 _ => {}
@@ -147,13 +152,21 @@ impl StreamInterceptor {
         }
 
         // Check if this chunk has tool_calls deltas
-        let has_tool_calls = parsed.pointer("/choices/0/delta/tool_calls").and_then(|t| t.as_array()).is_some();
-        let finish_reason = parsed.pointer("/choices/0/finish_reason").and_then(|f| f.as_str());
+        let has_tool_calls = parsed
+            .pointer("/choices/0/delta/tool_calls")
+            .and_then(|t| t.as_array())
+            .is_some();
+        let finish_reason = parsed
+            .pointer("/choices/0/finish_reason")
+            .and_then(|f| f.as_str());
 
         if has_tool_calls {
             self.openai_buffering = true;
             // Accumulate tool call fragments
-            if let Some(tool_calls) = parsed.pointer("/choices/0/delta/tool_calls").and_then(|t| t.as_array()) {
+            if let Some(tool_calls) = parsed
+                .pointer("/choices/0/delta/tool_calls")
+                .and_then(|t| t.as_array())
+            {
                 for tc in tool_calls {
                     let index = tc.get("index").and_then(|i| i.as_u64()).unwrap_or(0) as usize;
                     let entry = self.openai_tool_calls.entry(index).or_default();
@@ -196,9 +209,13 @@ impl StreamInterceptor {
 
         for &idx in &sorted_indices {
             let tc = &self.openai_tool_calls[&idx];
-            let input: Value = serde_json::from_str(&tc.arguments).unwrap_or(Value::Object(Default::default()));
+            let input: Value =
+                serde_json::from_str(&tc.arguments).unwrap_or(Value::Object(Default::default()));
             if let Some(result) = check_tool_use(idx, &tc.name, &input, &self.rules) {
-                let should_block = matches!(result.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk);
+                let should_block = matches!(
+                    result.action,
+                    RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+                );
                 self.intercepts.push(result);
                 if should_block {
                     blocked_indices.insert(idx);
@@ -214,9 +231,21 @@ impl StreamInterceptor {
         }
 
         // Generate replacement events: drop all buffered tool_call events, emit content message
-        let block_msgs: Vec<String> = self.intercepts.iter()
-            .filter(|i| matches!(i.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk))
-            .map(|i| format!("🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})", i.tool_name, i.reason, i.rule_name))
+        let block_msgs: Vec<String> = self
+            .intercepts
+            .iter()
+            .filter(|i| {
+                matches!(
+                    i.action,
+                    RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+                )
+            })
+            .map(|i| {
+                format!(
+                    "🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})",
+                    i.tool_name, i.reason, i.rule_name
+                )
+            })
             .collect();
 
         let replacement = serde_json::json!({
@@ -234,8 +263,14 @@ impl StreamInterceptor {
         self.openai_tool_calls.clear();
 
         vec![
-            SseEvent { event_type: "message".into(), data: replacement.to_string() },
-            SseEvent { event_type: "message".into(), data: finish.to_string() },
+            SseEvent {
+                event_type: "message".into(),
+                data: replacement.to_string(),
+            },
+            SseEvent {
+                event_type: "message".into(),
+                data: finish.to_string(),
+            },
         ]
     }
 
@@ -256,7 +291,10 @@ impl StreamInterceptor {
         let mut modified = parsed.clone();
 
         for (ci, candidate) in candidates.iter().enumerate() {
-            let parts = match candidate.pointer("/content/parts").and_then(|p| p.as_array()) {
+            let parts = match candidate
+                .pointer("/content/parts")
+                .and_then(|p| p.as_array())
+            {
                 Some(arr) => arr,
                 None => continue,
             };
@@ -267,11 +305,17 @@ impl StreamInterceptor {
                     None => continue,
                 };
                 let name = fc.get("name").and_then(|n| n.as_str()).unwrap_or_default();
-                let args = fc.get("args").cloned().unwrap_or(Value::Object(Default::default()));
+                let args = fc
+                    .get("args")
+                    .cloned()
+                    .unwrap_or(Value::Object(Default::default()));
 
                 let block_index = ci * 1000 + pi;
                 if let Some(result) = check_tool_use(block_index, name, &args, &self.rules) {
-                    let should_block = matches!(result.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk);
+                    let should_block = matches!(
+                        result.action,
+                        RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+                    );
                     self.intercepts.push(result.clone());
 
                     if should_block && self.enforce {
@@ -280,11 +324,17 @@ impl StreamInterceptor {
                             "🛡️ OpenClaw Harness blocked this action: [{}] {} (rule: {})",
                             result.tool_name, result.reason, result.rule_name
                         );
-                        modified.as_object_mut().unwrap()
-                            .get_mut("candidates").unwrap()
-                            .as_array_mut().unwrap()[ci]
-                            .pointer_mut("/content/parts").unwrap()
-                            .as_array_mut().unwrap()[pi] = serde_json::json!({"text": block_msg});
+                        modified
+                            .as_object_mut()
+                            .unwrap()
+                            .get_mut("candidates")
+                            .unwrap()
+                            .as_array_mut()
+                            .unwrap()[ci]
+                            .pointer_mut("/content/parts")
+                            .unwrap()
+                            .as_array_mut()
+                            .unwrap()[pi] = serde_json::json!({"text": block_msg});
                     }
                 }
             }
@@ -365,7 +415,10 @@ impl StreamInterceptor {
             let result = check_tool_use(index, &self.tool_name, &input_value, &self.rules);
 
             let should_block = match &result {
-                Some(r) => matches!(r.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk),
+                Some(r) => matches!(
+                    r.action,
+                    RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+                ),
                 None => false,
             };
 
@@ -398,9 +451,18 @@ impl StreamInterceptor {
 
                 self.buffer.clear();
                 vec![
-                    SseEvent { event_type: "content_block_start".into(), data: start_data.to_string() },
-                    SseEvent { event_type: "content_block_delta".into(), data: delta_data.to_string() },
-                    SseEvent { event_type: "content_block_stop".into(), data: stop_data.to_string() },
+                    SseEvent {
+                        event_type: "content_block_start".into(),
+                        data: start_data.to_string(),
+                    },
+                    SseEvent {
+                        event_type: "content_block_delta".into(),
+                        data: delta_data.to_string(),
+                    },
+                    SseEvent {
+                        event_type: "content_block_stop".into(),
+                        data: stop_data.to_string(),
+                    },
                 ]
             } else {
                 // Safe or monitor mode → flush buffer
@@ -424,15 +486,25 @@ pub fn parse_sse_events(raw: &str) -> Vec<SseEvent> {
             // Blank line = end of event
             if !event_type.is_empty() || !data.is_empty() {
                 events.push(SseEvent {
-                    event_type: if event_type.is_empty() { "message".into() } else { event_type },
+                    event_type: if event_type.is_empty() {
+                        "message".into()
+                    } else {
+                        event_type
+                    },
                     data,
                 });
                 event_type = String::new();
                 data = String::new();
             }
-        } else if let Some(val) = line.strip_prefix("event: ").or_else(|| line.strip_prefix("event:")) {
+        } else if let Some(val) = line
+            .strip_prefix("event: ")
+            .or_else(|| line.strip_prefix("event:"))
+        {
             event_type = val.trim().to_string();
-        } else if let Some(val) = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:")) {
+        } else if let Some(val) = line
+            .strip_prefix("data: ")
+            .or_else(|| line.strip_prefix("data:"))
+        {
             if !data.is_empty() {
                 data.push('\n');
             }
@@ -443,7 +515,11 @@ pub fn parse_sse_events(raw: &str) -> Vec<SseEvent> {
     // Handle trailing event without final blank line
     if !event_type.is_empty() || !data.is_empty() {
         events.push(SseEvent {
-            event_type: if event_type.is_empty() { "message".into() } else { event_type },
+            event_type: if event_type.is_empty() {
+                "message".into()
+            } else {
+                event_type
+            },
             data,
         });
     }
@@ -458,7 +534,9 @@ pub struct SseLineBuffer {
 }
 
 impl Default for SseLineBuffer {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SseLineBuffer {
@@ -499,7 +577,10 @@ mod tests {
     }
 
     fn make_event(event_type: &str, data: &str) -> SseEvent {
-        SseEvent { event_type: event_type.to_string(), data: data.to_string() }
+        SseEvent {
+            event_type: event_type.to_string(),
+            data: data.to_string(),
+        }
     }
 
     #[test]
@@ -508,11 +589,26 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, true);
 
         let events = vec![
-            make_event("message_start", r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#),
-            make_event("content_block_start", r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello world"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":0}"#),
-            make_event("message_delta", r#"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}"#),
+            make_event(
+                "message_start",
+                r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            ),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello world"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":0}"#,
+            ),
+            make_event(
+                "message_delta",
+                r#"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":5}}"#,
+            ),
             make_event("message_stop", r#"{"type":"message_stop"}"#),
         ];
 
@@ -533,10 +629,22 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, true);
 
         let events = vec![
-            make_event("message_start", r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#),
-            make_event("content_block_start", r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"ls -la\"}"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":0}"#),
+            make_event(
+                "message_start",
+                r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            ),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"ls -la\"}"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":0}"#,
+            ),
             make_event("message_stop", r#"{"type":"message_stop"}"#),
         ];
 
@@ -556,11 +664,26 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, true);
 
         let events = vec![
-            make_event("message_start", r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#),
-            make_event("content_block_start", r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"com"}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"mand\": \"rm -rf /\"}"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":0}"#),
+            make_event(
+                "message_start",
+                r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            ),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"com"}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"mand\": \"rm -rf /\"}"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":0}"#,
+            ),
             make_event("message_stop", r#"{"type":"message_stop"}"#),
         ];
 
@@ -588,19 +711,49 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, true);
 
         let events = vec![
-            make_event("message_start", r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#),
+            make_event(
+                "message_start",
+                r#"{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-sonnet-4-20250514","stop_reason":null,"usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            ),
             // Text block (index 0)
-            make_event("content_block_start", r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Let me help"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":0}"#),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Let me help"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":0}"#,
+            ),
             // Dangerous tool_use (index 1)
-            make_event("content_block_start", r#"{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"rm -rf /\"}"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":1}"#),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"rm -rf /\"}"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":1}"#,
+            ),
             // Safe tool_use (index 2)
-            make_event("content_block_start", r#"{"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_2","name":"exec"}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"ls -la\"}"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":2}"#),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_2","name":"exec"}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"ls -la\"}"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":2}"#,
+            ),
             make_event("message_stop", r#"{"type":"message_stop"}"#),
         ];
 
@@ -617,11 +770,17 @@ mod tests {
 
         // Dangerous block replaced
         let blocked_start: serde_json::Value = serde_json::from_str(&output[4].data).unwrap();
-        assert_eq!(blocked_start.pointer("/content_block/type").unwrap(), "text");
+        assert_eq!(
+            blocked_start.pointer("/content_block/type").unwrap(),
+            "text"
+        );
 
         // Safe tool passes through
         let safe_start: serde_json::Value = serde_json::from_str(&output[7].data).unwrap();
-        assert_eq!(safe_start.pointer("/content_block/type").unwrap(), "tool_use");
+        assert_eq!(
+            safe_start.pointer("/content_block/type").unwrap(),
+            "tool_use"
+        );
 
         assert_eq!(interceptor.intercepts.len(), 1);
     }
@@ -656,11 +815,26 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, true);
 
         let events = vec![
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"role":"assistant"},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"exec","arguments":""}}]},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"com"}}]},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"mand\": \"rm -rf /\"}"}}]},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}"#),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"role":"assistant"},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"exec","arguments":""}}]},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"com"}}]},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"mand\": \"rm -rf /\"}"}}]},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}"#,
+            ),
         ];
 
         let mut output = Vec::new();
@@ -671,8 +845,14 @@ mod tests {
         // First event (role) passes through, tool_call events buffered then replaced
         assert!(!interceptor.intercepts.is_empty());
         // Should have replacement content events instead of tool_call events
-        let has_blocked = output.iter().any(|e| e.data.contains("OpenClaw Harness blocked"));
-        assert!(has_blocked, "Should contain block message, got: {:?}", output.iter().map(|e| &e.data).collect::<Vec<_>>());
+        let has_blocked = output
+            .iter()
+            .any(|e| e.data.contains("OpenClaw Harness blocked"));
+        assert!(
+            has_blocked,
+            "Should contain block message, got: {:?}",
+            output.iter().map(|e| &e.data).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -681,10 +861,22 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, true);
 
         let events = vec![
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"role":"assistant"},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"exec","arguments":""}}]},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"command\": \"ls -la\"}"}}]},"index":0}]}"#),
-            make_event("message", r#"{"id":"chatcmpl-1","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}"#),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"role":"assistant"},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"exec","arguments":""}}]},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"command\": \"ls -la\"}"}}]},"index":0}]}"#,
+            ),
+            make_event(
+                "message",
+                r#"{"id":"chatcmpl-1","choices":[{"delta":{},"index":0,"finish_reason":"tool_calls"}]}"#,
+            ),
         ];
 
         let mut output = Vec::new();
@@ -694,7 +886,9 @@ mod tests {
 
         assert!(interceptor.intercepts.is_empty());
         // All buffered events flushed
-        let has_blocked = output.iter().any(|e| e.data.contains("OpenClaw Harness blocked"));
+        let has_blocked = output
+            .iter()
+            .any(|e| e.data.contains("OpenClaw Harness blocked"));
         assert!(!has_blocked);
     }
 
@@ -705,7 +899,10 @@ mod tests {
         let rules = get_rules();
         let mut interceptor = StreamInterceptor::new(rules, true);
 
-        let event = make_event("message", r#"{"candidates":[{"content":{"parts":[{"functionCall":{"name":"exec","args":{"command":"rm -rf /"}}}]},"finishReason":"STOP"}]}"#);
+        let event = make_event(
+            "message",
+            r#"{"candidates":[{"content":{"parts":[{"functionCall":{"name":"exec","args":{"command":"rm -rf /"}}}]},"finishReason":"STOP"}]}"#,
+        );
 
         let output = interceptor.process_event(event);
         assert!(!interceptor.intercepts.is_empty());
@@ -717,7 +914,10 @@ mod tests {
         let rules = get_rules();
         let mut interceptor = StreamInterceptor::new(rules, true);
 
-        let event = make_event("message", r#"{"candidates":[{"content":{"parts":[{"functionCall":{"name":"exec","args":{"command":"ls -la"}}}]},"finishReason":"STOP"}]}"#);
+        let event = make_event(
+            "message",
+            r#"{"candidates":[{"content":{"parts":[{"functionCall":{"name":"exec","args":{"command":"ls -la"}}}]},"finishReason":"STOP"}]}"#,
+        );
 
         let output = interceptor.process_event(event);
         assert!(interceptor.intercepts.is_empty());
@@ -730,9 +930,18 @@ mod tests {
         let mut interceptor = StreamInterceptor::new(rules, false); // enforce=false
 
         let events = vec![
-            make_event("content_block_start", r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#),
-            make_event("content_block_delta", r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"rm -rf /\"}"}}"#),
-            make_event("content_block_stop", r#"{"type":"content_block_stop","index":0}"#),
+            make_event(
+                "content_block_start",
+                r#"{"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"exec"}}"#,
+            ),
+            make_event(
+                "content_block_delta",
+                r#"{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"command\": \"rm -rf /\"}"}}"#,
+            ),
+            make_event(
+                "content_block_stop",
+                r#"{"type":"content_block_stop","index":0}"#,
+            ),
         ];
 
         let mut output = Vec::new();
@@ -743,7 +952,10 @@ mod tests {
         // Monitor mode: all 3 original events flushed (not replaced)
         assert_eq!(output.len(), 3);
         let start_data: serde_json::Value = serde_json::from_str(&output[0].data).unwrap();
-        assert_eq!(start_data.pointer("/content_block/type").unwrap(), "tool_use");
+        assert_eq!(
+            start_data.pointer("/content_block/type").unwrap(),
+            "tool_use"
+        );
         // But intercept is still recorded
         assert_eq!(interceptor.intercepts.len(), 1);
     }

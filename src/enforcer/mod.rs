@@ -4,7 +4,7 @@
 
 pub mod alerter;
 
-use super::{AnalysisResult, Recommendation, AlertConfig};
+use super::{AlertConfig, AnalysisResult, Recommendation};
 use tracing::{info, warn};
 
 /// Enforcer handles actions based on analysis results
@@ -25,9 +25,7 @@ impl Enforcer {
             Recommendation::LogOnly => {
                 info!(
                     "[{}] {} - {}",
-                    result.action.agent,
-                    result.action.action_type,
-                    result.action.content
+                    result.action.agent, result.action.action_type, result.action.content
                 );
             }
             Recommendation::Alert => {

@@ -1,16 +1,16 @@
 //! Start command - launches the OpenClaw Harness daemon
 
-use openclaw_harness::collectors::{Collector, openclaw::OpenclawCollector};
 use openclaw_harness::analyzer::Analyzer;
+use openclaw_harness::collectors::{openclaw::OpenclawCollector, Collector};
 use openclaw_harness::enforcer::alerter::Alerter;
 use openclaw_harness::rules::{default_rules, load_rules_from_file};
 use openclaw_harness::web::{self, WebEvent};
-use openclaw_harness::{AgentAction, RiskLevel, Recommendation, AlertConfig, TelegramConfig};
+use openclaw_harness::{AgentAction, AlertConfig, Recommendation, RiskLevel, TelegramConfig};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::process::Command;
-use tokio::sync::{mpsc, broadcast};
-use sha2::{Sha256, Digest};
-use tracing::{info, warn, error};
+use tokio::sync::{broadcast, mpsc};
+use tracing::{error, info, warn};
 
 const PID_FILE: &str = "/tmp/openclaw-harness.pid";
 const CONFIG_HASH_FILE: &str = "/tmp/openclaw-harness-config.hash";
@@ -75,21 +75,21 @@ fn load_telegram_config() -> Option<TelegramConfig> {
     let chat_id = std::env::var("OPENCLAW_HARNESS_TELEGRAM_CHAT_ID")
         .or_else(|_| std::env::var("SAFEBOT_TELEGRAM_CHAT_ID"))
         .ok()?;
-    
+
     if bot_token.is_empty() || chat_id.is_empty() {
         return None;
     }
-    
+
     Some(TelegramConfig { bot_token, chat_id })
 }
 
 /// Attempt to interrupt Clawdbot
 async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
     info!("🛑 Attempting to block action...");
-    
+
     // Find OpenClaw gateway process and send interrupt
     // This is a best-effort approach - OpenClaw may have already executed the action
-    
+
     // Method 1: Send SIGINT to the OpenClaw process if we can find it
     if let Some(_session_id) = &action.session_id {
         // Try to find the session and interrupt it
@@ -97,13 +97,15 @@ async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
         let result = Command::new("pkill")
             .args(["-INT", "-f", "openclaw.*gateway|clawdbot.*gateway"])
             .output();
-        
+
         match result {
             Ok(output) => {
                 if output.status.success() {
                     info!("🛑 Sent interrupt signal to OpenClaw");
                 } else {
-                    warn!("⚠️  Could not interrupt OpenClaw (may not be running or already finished)");
+                    warn!(
+                        "⚠️  Could not interrupt OpenClaw (may not be running or already finished)"
+                    );
                 }
             }
             Err(e) => {
@@ -111,7 +113,7 @@ async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
             }
         }
     }
-    
+
     // Method 2: Write a block marker that Clawdbot could check
     // (Would require Clawdbot integration)
     let block_file = "/tmp/openclaw-harness_block";
@@ -121,21 +123,24 @@ async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
         "reason": "OpenClaw Harness security block",
     });
     fs::write(block_file, block_info.to_string())?;
-    
+
     Ok(())
 }
 
 async fn run_daemon() -> anyhow::Result<()> {
     // Write PID file
     write_pid()?;
-    
+
     // Setup cleanup on exit
     let _guard = scopeguard::guard((), |_| {
         remove_pid();
     });
 
-    info!("🛡️ OpenClaw Harness daemon starting (PID: {})...", std::process::id());
-    
+    info!(
+        "🛡️ OpenClaw Harness daemon starting (PID: {})...",
+        std::process::id()
+    );
+
     // Load rules (config file first, fallback to defaults)
     let config_path = std::path::Path::new("config/rules.yaml");
     let rules = if config_path.exists() {
@@ -162,34 +167,38 @@ async fn run_daemon() -> anyhow::Result<()> {
         let hash = compute_config_hash(config_path);
         if let Some(ref h) = hash {
             let _ = fs::write(CONFIG_HASH_FILE, h);
-            info!("🔐 Config integrity hash stored: {}...{}", &h[..8], &h[h.len()-8..]);
+            info!(
+                "🔐 Config integrity hash stored: {}...{}",
+                &h[..8],
+                &h[h.len() - 8..]
+            );
         }
         hash
     } else {
         None
     };
     let config_hash_ref = config_hash.clone();
-    
+
     // Create broadcast channel for web events
     let (web_tx, _) = broadcast::channel::<WebEvent>(100);
     let web_tx_clone = web_tx.clone();
-    
+
     // Start web server
     let web_port = std::env::var("OPENCLAW_HARNESS_WEB_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(8380);
-    
+
     let db_path = "~/.openclaw-harness/openclaw-harness.db".to_string();
     tokio::spawn(async move {
         if let Err(e) = web::start_server(web_port, web_tx_clone, db_path, None).await {
             error!("Web server error: {}", e);
         }
     });
-    
+
     // Create analyzer
     let analyzer = Analyzer::new(rules);
-    
+
     // Load alert config from environment
     let telegram_config = load_telegram_config();
     let alerter = if telegram_config.is_some() {
@@ -203,10 +212,10 @@ async fn run_daemon() -> anyhow::Result<()> {
         warn!("⚠️  No Telegram config found (set OPENCLAW_HARNESS_TELEGRAM_BOT_TOKEN and OPENCLAW_HARNESS_TELEGRAM_CHAT_ID)");
         None
     };
-    
+
     // Create channel for actions
     let (tx, mut rx) = mpsc::channel::<AgentAction>(100);
-    
+
     // Start OpenClaw collector
     let collector = OpenclawCollector::new();
     if collector.is_available() {
@@ -220,15 +229,15 @@ async fn run_daemon() -> anyhow::Result<()> {
     } else {
         warn!("⚠️  OpenClaw sessions directory not found");
     }
-    
+
     info!("✅ OpenClaw Harness daemon started successfully");
     info!("👀 Monitoring for AI agent actions...");
-    
+
     // Keep tx alive to prevent channel from closing
     let _tx_keepalive = tx;
-    
+
     info!("🔄 Entering main event loop...");
-    
+
     // Main event loop - process actions
     loop {
         tokio::select! {
@@ -236,33 +245,33 @@ async fn run_daemon() -> anyhow::Result<()> {
                 match action_opt {
                     Some(action) => {
                         info!("📥 Received action: {} - {}", action.action_type, truncate(&action.content, 50));
-                        
+
                         // Broadcast to web clients
                         let _ = web_tx.send(WebEvent::from(&action));
-                        
+
                         // Analyze the action
                         let result = analyzer.analyze(&action);
-                        
+
                         // Broadcast analysis result
                         let _ = web_tx.send(WebEvent::from(&result));
-                        
+
                         // Handle based on result
                         if result.matched_rules.is_empty() {
                             continue;
                         }
-                        
+
                         match result.risk_level {
                             RiskLevel::Critical => {
-                                error!("🚨 CRITICAL: {} (rules: {:?})", 
+                                error!("🚨 CRITICAL: {} (rules: {:?})",
                                     result.explanation, result.matched_rules);
-                                
+
                                 // Send alert
                                 if let Some(ref alerter) = alerter {
                                     if let Err(e) = alerter.send_alert(&result).await {
                                         error!("Failed to send alert: {}", e);
                                     }
                                 }
-                                
+
                                 match result.recommendation {
                                     Recommendation::CriticalAlert => {
                                         error!("🛑 ACTION BLOCKED");
@@ -281,9 +290,9 @@ async fn run_daemon() -> anyhow::Result<()> {
                                 }
                             }
                             RiskLevel::Warning => {
-                                warn!("⚠️  WARNING: {} (rules: {:?})", 
+                                warn!("⚠️  WARNING: {} (rules: {:?})",
                                     result.explanation, result.matched_rules);
-                                
+
                                 // Send alert for warnings too
                                 if let Some(ref alerter) = alerter {
                                     if let Err(e) = alerter.send_alert(&result).await {

@@ -9,7 +9,7 @@ pub fn calculate_risk(_action: &AgentAction, matched_rules: &[String]) -> RiskLe
     // - Historical context
     // - AI-based analysis
     // - User behavior patterns
-    
+
     if matched_rules.is_empty() {
         RiskLevel::Info
     } else {

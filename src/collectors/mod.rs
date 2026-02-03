@@ -5,9 +5,9 @@
 //! 2. Parsing log entries into `AgentAction`
 //! 3. Emitting actions to the analyzer
 
-pub mod openclaw;
 pub mod claude_code;
 pub mod cursor;
+pub mod openclaw;
 
 use super::{AgentAction, CollectorConfig};
 use async_trait::async_trait;

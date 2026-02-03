@@ -205,58 +205,65 @@ async fn main() -> anyhow::Result<()> {
             info!("Launching TUI dashboard...");
             cli::tui::run().await?;
         }
-        Commands::Rules { action } => {
-            match action {
-                RulesAction::List => cli::rules::list().await?,
-                RulesAction::Enable { name } => cli::rules::enable(&name).await?,
-                RulesAction::Disable { name } => cli::rules::disable(&name).await?,
-                RulesAction::Show { name } => cli::rules::show(&name).await?,
-                RulesAction::Reload => cli::rules::reload().await?,
-                RulesAction::Templates => cli::rules::templates().await?,
-                RulesAction::Add {
-                    name,
-                    template,
-                    path,
-                    operations,
-                    commands,
-                    keyword_contains,
-                    keyword_starts_with,
-                    keyword_any_of,
-                    risk,
-                    rule_action,
-                } => {
-                    if let Some(ref tmpl) = template {
-                        let rule_name = name.as_deref().unwrap_or(tmpl);
-                        cli::rules::add_template(
-                            rule_name,
-                            tmpl,
-                            path.as_deref(),
-                            operations.as_deref(),
-                            commands.as_deref(),
-                            risk.as_deref(),
-                            rule_action.as_deref(),
-                        ).await?;
-                    } else if keyword_contains.is_some() || keyword_starts_with.is_some() || keyword_any_of.is_some() {
-                        let rule_name = name.as_deref().unwrap_or("custom_keyword_rule");
-                        cli::rules::add_keyword(
-                            rule_name,
-                            keyword_contains.as_deref(),
-                            keyword_starts_with.as_deref(),
-                            keyword_any_of.as_deref(),
-                            risk.as_deref(),
-                            rule_action.as_deref(),
-                        ).await?;
-                    } else {
-                        eprintln!("Error: Specify --template or --keyword-contains/--keyword-any-of");
-                        std::process::exit(1);
-                    }
+        Commands::Rules { action } => match action {
+            RulesAction::List => cli::rules::list().await?,
+            RulesAction::Enable { name } => cli::rules::enable(&name).await?,
+            RulesAction::Disable { name } => cli::rules::disable(&name).await?,
+            RulesAction::Show { name } => cli::rules::show(&name).await?,
+            RulesAction::Reload => cli::rules::reload().await?,
+            RulesAction::Templates => cli::rules::templates().await?,
+            RulesAction::Add {
+                name,
+                template,
+                path,
+                operations,
+                commands,
+                keyword_contains,
+                keyword_starts_with,
+                keyword_any_of,
+                risk,
+                rule_action,
+            } => {
+                if let Some(ref tmpl) = template {
+                    let rule_name = name.as_deref().unwrap_or(tmpl);
+                    cli::rules::add_template(
+                        rule_name,
+                        tmpl,
+                        path.as_deref(),
+                        operations.as_deref(),
+                        commands.as_deref(),
+                        risk.as_deref(),
+                        rule_action.as_deref(),
+                    )
+                    .await?;
+                } else if keyword_contains.is_some()
+                    || keyword_starts_with.is_some()
+                    || keyword_any_of.is_some()
+                {
+                    let rule_name = name.as_deref().unwrap_or("custom_keyword_rule");
+                    cli::rules::add_keyword(
+                        rule_name,
+                        keyword_contains.as_deref(),
+                        keyword_starts_with.as_deref(),
+                        keyword_any_of.as_deref(),
+                        risk.as_deref(),
+                        rule_action.as_deref(),
+                    )
+                    .await?;
+                } else {
+                    eprintln!("Error: Specify --template or --keyword-contains/--keyword-any-of");
+                    std::process::exit(1);
                 }
             }
-        }
+        },
         Commands::Test { rule, input } => {
             cli::test::run(&rule, &input).await?;
         }
-        Commands::Patch { target, revert, check } => {
+        Commands::Patch {
+            target,
+            revert,
+            check,
+        } => {
             let mode = if check {
                 cli::patch::PatchMode::Check
             } else if revert {
@@ -266,17 +273,15 @@ async fn main() -> anyhow::Result<()> {
             };
             cli::patch::run(&target, mode).await?;
         }
-        Commands::Proxy { action } => {
-            match action {
-                ProxyAction::Start { port, target, mode } => {
-                    info!("🛡️ Starting OpenClaw Harness API Proxy...");
-                    cli::proxy::start(port, target, mode).await?;
-                }
-                ProxyAction::Status => {
-                    cli::proxy::status().await?;
-                }
+        Commands::Proxy { action } => match action {
+            ProxyAction::Start { port, target, mode } => {
+                info!("🛡️ Starting OpenClaw Harness API Proxy...");
+                cli::proxy::start(port, target, mode).await?;
             }
-        }
+            ProxyAction::Status => {
+                cli::proxy::status().await?;
+            }
+        },
     }
 
     Ok(())

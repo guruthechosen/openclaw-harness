@@ -1,8 +1,8 @@
 //! Rules management commands
 
 use openclaw_harness::rules::{
-    default_rules, all_templates, self_protection_rules, Rule, KeywordMatch, TemplateParams, RuleAction, MatchType,
-    load_rules_from_file,
+    all_templates, default_rules, load_rules_from_file, self_protection_rules, KeywordMatch,
+    MatchType, Rule, RuleAction, TemplateParams,
 };
 use openclaw_harness::RiskLevel;
 
@@ -65,7 +65,9 @@ pub async fn templates() -> anyhow::Result<()> {
     println!("Total: {} templates", templates.len());
     println!("\nUsage:");
     println!("  openclaw-harness rules add --template protect_path --path \"/etc\" --operations \"read,write\"");
-    println!("  openclaw-harness rules add --keyword-contains \"rm -rf\" --risk critical --action block");
+    println!(
+        "  openclaw-harness rules add --keyword-contains \"rm -rf\" --risk critical --action block"
+    );
     Ok(())
 }
 
@@ -169,7 +171,10 @@ pub async fn enable(name: &str) -> anyhow::Result<()> {
     // Check if this is a self-protection rule
     let sp_rules = self_protection_rules();
     if sp_rules.iter().any(|r| r.name == name) {
-        println!("✅ Rule '{}' is a self-protection rule and is always enabled.", name);
+        println!(
+            "✅ Rule '{}' is a self-protection rule and is always enabled.",
+            name
+        );
         return Ok(());
     }
     println!("Enabling rule: {}", name);
@@ -181,9 +186,14 @@ pub async fn disable(name: &str) -> anyhow::Result<()> {
     // Block disabling self-protection rules
     let sp_rules = self_protection_rules();
     if sp_rules.iter().any(|r| r.name == name) {
-        println!("🔒 DENIED: Rule '{}' is a self-protection rule and cannot be disabled.", name);
+        println!(
+            "🔒 DENIED: Rule '{}' is a self-protection rule and cannot be disabled.",
+            name
+        );
         println!("   Self-protection rules are hardcoded and prevent the AI agent from");
-        println!("   tampering with the security harness. Only a human can modify the source code.");
+        println!(
+            "   tampering with the security harness. Only a human can modify the source code."
+        );
         return Ok(());
     }
     println!("Disabling rule: {}", name);

@@ -15,7 +15,9 @@ pub struct ClaudeCodeCollector {
 }
 
 impl Default for ClaudeCodeCollector {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ClaudeCodeCollector {
@@ -34,7 +36,10 @@ impl super::Collector for ClaudeCodeCollector {
     }
 
     async fn start(&self, _tx: mpsc::Sender<AgentAction>) -> anyhow::Result<()> {
-        info!("Starting Claude Code collector, watching: {:?}", self.log_dir);
+        info!(
+            "Starting Claude Code collector, watching: {:?}",
+            self.log_dir
+        );
 
         if !self.log_dir.exists() {
             warn!("Claude Code log directory not found: {:?}", self.log_dir);
@@ -43,7 +48,7 @@ impl super::Collector for ClaudeCodeCollector {
 
         // TODO: Implement log watching similar to OpenClaw
         // Claude Code logs are in JSONL format with tool_use events
-        
+
         Ok(())
     }
 

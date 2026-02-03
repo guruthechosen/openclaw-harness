@@ -7,18 +7,18 @@ pub mod ws;
 
 #[allow(unused_imports)]
 use axum::{
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Router,
 };
-use tower_http::cors::{CorsLayer, Any};
-use tower_http::services::ServeDir;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 use tracing::info;
 
-use crate::{AgentAction, AnalysisResult};
-use crate::rules::Rule;
 use crate::proxy::config::ProxyConfig;
+use crate::rules::Rule;
+use crate::{AgentAction, AnalysisResult};
 
 /// Shared state for the web server
 pub struct AppState {
@@ -129,20 +129,31 @@ pub async fn start_server(
         .route("/api/events", get(routes::get_events))
         .route("/api/events/recent", get(routes::get_recent_events))
         .route("/api/events/:id", get(routes::get_event))
-        .route("/api/rules", get(routes::get_rules).post(routes::create_rule))
-        .route("/api/rules/:name", put(routes::update_rule).delete(routes::delete_rule))
+        .route(
+            "/api/rules",
+            get(routes::get_rules).post(routes::create_rule),
+        )
+        .route(
+            "/api/rules/:name",
+            put(routes::update_rule).delete(routes::delete_rule),
+        )
         .route("/api/rules/test", post(routes::test_rule))
         .route("/api/proxy/status", get(routes::get_proxy_status))
         .route("/api/proxy/config", put(routes::update_proxy_config))
         .route("/api/providers", get(routes::get_providers))
-        .route("/api/alerts/config", get(routes::get_alert_config).put(routes::update_alert_config))
+        .route(
+            "/api/alerts/config",
+            get(routes::get_alert_config).put(routes::update_alert_config),
+        )
         // WebSocket
         .route("/ws/events", get(ws::ws_handler))
         .with_state(state)
-        .layer(CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any));
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
     // Serve static files if directory provided
     if let Some(dir) = static_dir {

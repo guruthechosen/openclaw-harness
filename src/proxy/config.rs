@@ -25,10 +25,18 @@ pub enum ProxyMode {
     Enforce,
 }
 
-fn default_enabled() -> bool { true }
-fn default_listen() -> String { "127.0.0.1:9090".to_string() }
-fn default_target() -> String { "https://api.anthropic.com".to_string() }
-fn default_mode() -> ProxyMode { ProxyMode::Enforce }
+fn default_enabled() -> bool {
+    true
+}
+fn default_listen() -> String {
+    "127.0.0.1:9090".to_string()
+}
+fn default_target() -> String {
+    "https://api.anthropic.com".to_string()
+}
+fn default_mode() -> ProxyMode {
+    ProxyMode::Enforce
+}
 
 impl Default for ProxyConfig {
     fn default() -> Self {

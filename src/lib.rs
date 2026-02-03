@@ -2,17 +2,17 @@
 //!
 //! Core components for AI agent monitoring.
 
-pub mod collectors;
 pub mod analyzer;
-pub mod enforcer;
-pub mod rules;
+pub mod collectors;
 pub mod db;
-pub mod web;
-pub mod proxy;
+pub mod enforcer;
 pub mod patcher;
+pub mod proxy;
+pub mod rules;
+pub mod web;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Represents a single action performed by an AI agent
 #[derive(Debug, Clone, Serialize, Deserialize)]

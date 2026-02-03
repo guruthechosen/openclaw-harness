@@ -7,8 +7,8 @@ pub mod interceptor;
 pub mod streaming;
 
 use self::config::{ProxyConfig, ProxyMode};
-use self::interceptor::{intercept_response, format_telegram_alert, InterceptResult};
-use self::streaming::{StreamInterceptor, SseLineBuffer, parse_sse_events};
+use self::interceptor::{format_telegram_alert, intercept_response, InterceptResult};
+use self::streaming::{parse_sse_events, SseLineBuffer, StreamInterceptor};
 use crate::rules::{default_rules, Rule, RuleAction};
 use crate::{AlertConfig, TelegramConfig};
 
@@ -24,7 +24,7 @@ use futures_util::StreamExt;
 use reqwest::Client;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tracing::{info, error};
+use tracing::{error, info};
 
 /// Shared state for the proxy
 struct ProxyState {
@@ -36,7 +36,10 @@ struct ProxyState {
 }
 
 /// Start the proxy server
-pub async fn start_proxy(config: ProxyConfig, alert_config: Option<AlertConfig>) -> anyhow::Result<()> {
+pub async fn start_proxy(
+    config: ProxyConfig,
+    alert_config: Option<AlertConfig>,
+) -> anyhow::Result<()> {
     let mut rules = default_rules();
     for r in &mut rules {
         r.compile()?;
@@ -129,11 +132,13 @@ async fn proxy_handler(
 
     let status = upstream_resp.status();
     let resp_headers = upstream_resp.headers().clone();
-    let is_api_post = method == Method::POST && (
-        path.contains("/v1/messages") ||           // Anthropic
+    let is_api_post = method == Method::POST
+        && (
+            path.contains("/v1/messages") ||           // Anthropic
         path.contains("/v1/chat/completions") ||    // OpenAI-compatible
-        path.contains("/generateContent")           // Gemini
-    );
+        path.contains("/generateContent")
+            // Gemini
+        );
     let is_messages_post = is_api_post;
     let content_type = resp_headers
         .get("content-type")
@@ -207,9 +212,7 @@ async fn proxy_handler(
             }
         }
 
-        return builder
-            .body(Body::from_stream(intercepted_stream))
-            .unwrap();
+        return builder.body(Body::from_stream(intercepted_stream)).unwrap();
     }
 
     // Non-streaming: read full body
@@ -243,7 +246,8 @@ async fn proxy_handler(
     };
 
     // Build response
-    let mut builder = Response::builder().status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
+    let mut builder =
+        Response::builder().status(StatusCode::from_u16(status.as_u16()).unwrap_or(StatusCode::OK));
 
     for (name, value) in resp_headers.iter() {
         if name == "transfer-encoding" || name == "content-length" {
@@ -265,7 +269,10 @@ async fn send_intercept_alerts(telegram: Option<TelegramConfig>, intercepts: &[I
     let url = format!("https://api.telegram.org/bot{}/sendMessage", tg.bot_token);
 
     for intercept in intercepts {
-        if !matches!(intercept.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk) {
+        if !matches!(
+            intercept.action,
+            RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+        ) {
             continue;
         }
         let message = format_telegram_alert(intercept);

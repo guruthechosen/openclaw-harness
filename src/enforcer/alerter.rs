@@ -1,9 +1,9 @@
 //! Alert sending to various channels
 
-use super::super::{AnalysisResult, AlertConfig, TelegramConfig, SlackConfig, DiscordConfig};
+use super::super::{AlertConfig, AnalysisResult, DiscordConfig, SlackConfig, TelegramConfig};
 use reqwest::Client;
 use serde_json::json;
-use tracing::{info, error};
+use tracing::{error, info};
 
 pub struct Alerter {
     client: Client,
@@ -97,7 +97,11 @@ fn truncate(s: &str, max_len: usize) -> String {
     }
 }
 
-async fn send_telegram(client: &Client, config: &TelegramConfig, message: &str) -> anyhow::Result<()> {
+async fn send_telegram(
+    client: &Client,
+    config: &TelegramConfig,
+    message: &str,
+) -> anyhow::Result<()> {
     let url = format!(
         "https://api.telegram.org/bot{}/sendMessage",
         config.bot_token
@@ -130,7 +134,11 @@ async fn send_slack(client: &Client, config: &SlackConfig, message: &str) -> any
     Ok(())
 }
 
-async fn send_discord(client: &Client, config: &DiscordConfig, message: &str) -> anyhow::Result<()> {
+async fn send_discord(
+    client: &Client,
+    config: &DiscordConfig,
+    message: &str,
+) -> anyhow::Result<()> {
     client
         .post(&config.webhook_url)
         .json(&json!({

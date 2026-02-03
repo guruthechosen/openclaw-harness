@@ -1,7 +1,7 @@
 //! SQLite database for storing action logs and analysis results
 
-use super::{AgentAction, AnalysisResult, AgentType, ActionType};
-use rusqlite::{Connection, params};
+use super::{ActionType, AgentAction, AgentType, AnalysisResult};
+use rusqlite::{params, Connection};
 use std::path::Path;
 use tracing::info;
 
@@ -140,11 +140,9 @@ impl Database {
 
     /// Get statistics
     pub fn get_stats(&self) -> anyhow::Result<Stats> {
-        let total_actions: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM actions",
-            [],
-            |row| row.get(0),
-        )?;
+        let total_actions: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM actions", [], |row| row.get(0))?;
 
         let blocked: i64 = self.conn.query_row(
             "SELECT COUNT(*) FROM analysis_results WHERE recommendation = 'CriticalAlert'",
@@ -168,7 +166,7 @@ impl Database {
     /// Clean up old entries
     pub fn cleanup(&self, retention_days: u32) -> anyhow::Result<usize> {
         let cutoff = chrono::Utc::now() - chrono::Duration::days(retention_days as i64);
-        
+
         let deleted = self.conn.execute(
             "DELETE FROM actions WHERE timestamp < ?1",
             [cutoff.to_rfc3339()],
@@ -213,7 +211,7 @@ pub struct Stats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::{AgentType, ActionType};
+    use super::{ActionType, AgentType};
 
     #[test]
     fn test_database_operations() {

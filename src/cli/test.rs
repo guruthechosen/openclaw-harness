@@ -1,12 +1,12 @@
 //! Test command - test a rule against sample input
 
 use openclaw_harness::rules::{default_rules, load_rules_from_file};
-use openclaw_harness::{AgentAction, AgentType, ActionType};
+use openclaw_harness::{ActionType, AgentAction, AgentType};
 
 pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
     println!("Testing rule '{}' against input: {}", rule_name, input);
     println!("────────────────────────────────────");
-    
+
     // Try loading from config first, fall back to defaults
     let config_path = std::path::Path::new("config/rules.yaml");
     let rules = if config_path.exists() {
@@ -17,10 +17,10 @@ pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
     } else {
         default_rules()
     };
-    
+
     if let Some(mut rule) = rules.into_iter().find(|r| r.name == rule_name) {
         rule.compile()?;
-        
+
         // Create test action
         let action = AgentAction {
             id: "test".to_string(),
@@ -32,7 +32,7 @@ pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
             session_id: None,
             metadata: None,
         };
-        
+
         if rule.matches(&action) {
             println!("✅ MATCH");
             println!("Risk Level: {:?}", rule.risk_level);
@@ -57,6 +57,6 @@ pub async fn run(rule_name: &str, input: &str) -> anyhow::Result<()> {
             println!("  - {} [{}]", rule.name, type_tag);
         }
     }
-    
+
     Ok(())
 }

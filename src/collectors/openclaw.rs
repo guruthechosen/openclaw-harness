@@ -4,7 +4,7 @@
 //! - ~/.openclaw/agents/main/sessions/*.jsonl (session logs)
 //! - Falls back to ~/.clawdbot/agents/main/sessions/ for legacy installs
 
-use super::super::{AgentAction, AgentType, ActionType};
+use super::super::{ActionType, AgentAction, AgentType};
 // When compiled as part of lib, use super's parent
 use async_trait::async_trait;
 use serde::Deserialize;
@@ -14,7 +14,7 @@ use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-use tracing::{info, debug, warn, error};
+use tracing::{debug, error, info, warn};
 
 /// Collector for OpenClaw/Clawdbot
 pub struct OpenclawCollector {
@@ -51,7 +51,7 @@ impl OpenclawCollector {
     /// Parse a JSONL session log line and extract tool calls
     fn parse_log_line(&self, line: &str) -> Vec<AgentAction> {
         let mut actions = Vec::new();
-        
+
         let entry: OpenclawLogEntry = match serde_json::from_str(line) {
             Ok(e) => e,
             Err(_) => return actions,
@@ -128,9 +128,13 @@ impl OpenclawCollector {
         };
 
         let file_size = metadata.len();
-        
+
         // If file is smaller than our position, it was truncated/rotated
-        let start_pos = if file_size < current_pos { 0 } else { current_pos };
+        let start_pos = if file_size < current_pos {
+            0
+        } else {
+            current_pos
+        };
 
         let mut reader = BufReader::new(file);
         if reader.seek(SeekFrom::Start(start_pos)).is_err() {
@@ -155,7 +159,7 @@ impl OpenclawCollector {
         positions.insert(path.clone(), new_pos);
         lines
     }
-    
+
     /// Get all JSONL files in sessions directory
     fn get_session_files(&self) -> Vec<PathBuf> {
         let mut files = Vec::new();
@@ -179,68 +183,76 @@ fn extract_content_and_target(tool_call: &ToolCall) -> (String, Option<String>) 
 
     match tool_call.name.as_str() {
         "exec" => {
-            let cmd = args.get("command")
+            let cmd = args
+                .get("command")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             (cmd, None)
         }
         "Read" | "read" => {
-            let path = args.get("path")
+            let path = args
+                .get("path")
                 .or_else(|| args.get("file_path"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             (format!("read {}", path.as_deref().unwrap_or("")), path)
         }
         "Write" | "write" => {
-            let path = args.get("path")
+            let path = args
+                .get("path")
                 .or_else(|| args.get("file_path"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             (format!("write {}", path.as_deref().unwrap_or("")), path)
         }
         "Edit" | "edit" => {
-            let path = args.get("path")
+            let path = args
+                .get("path")
                 .or_else(|| args.get("file_path"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             (format!("edit {}", path.as_deref().unwrap_or("")), path)
         }
         "web_fetch" => {
-            let url = args.get("url")
+            let url = args
+                .get("url")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             (format!("fetch {}", url.as_deref().unwrap_or("")), url)
         }
         "web_search" => {
-            let query = args.get("query")
+            let query = args
+                .get("query")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             (format!("search: {}", query), None)
         }
         "browser" => {
-            let action = args.get("action")
+            let action = args
+                .get("action")
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
-            let url = args.get("targetUrl")
+            let url = args
+                .get("targetUrl")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             (format!("browser:{}", action), url)
         }
         "message" => {
-            let target = args.get("target")
+            let target = args
+                .get("target")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            let msg = args.get("message")
+            let msg = args
+                .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
             (msg, target)
         }
-        _ => {
-            (serde_json::to_string(args).unwrap_or_default(), None)
-        }
+        _ => (serde_json::to_string(args).unwrap_or_default(), None),
     }
 }
 
@@ -251,10 +263,16 @@ impl super::Collector for OpenclawCollector {
     }
 
     async fn start(&self, tx: mpsc::Sender<AgentAction>) -> anyhow::Result<()> {
-        info!("🦞 Starting OpenClaw collector, watching: {:?}", self.sessions_dir);
+        info!(
+            "🦞 Starting OpenClaw collector, watching: {:?}",
+            self.sessions_dir
+        );
 
         if !self.sessions_dir.exists() {
-            warn!("OpenClaw sessions directory not found: {:?}", self.sessions_dir);
+            warn!(
+                "OpenClaw sessions directory not found: {:?}",
+                self.sessions_dir
+            );
             return Ok(());
         }
 
@@ -270,21 +288,21 @@ impl super::Collector for OpenclawCollector {
 
         // Polling-based monitoring (simpler than notify for now)
         let poll_interval = tokio::time::Duration::from_millis(500);
-        
+
         loop {
             tokio::time::sleep(poll_interval).await;
-            
+
             for path in self.get_session_files() {
                 let lines = self.read_new_lines(&path).await;
-                
+
                 if lines.is_empty() {
                     continue;
                 }
-                
+
                 debug!("Processing {} new lines from {:?}", lines.len(), path);
-                
+
                 let mut seen = self.seen_ids.lock().await;
-                
+
                 for line in lines {
                     let actions = self.parse_log_line(&line);
                     for action in actions {
@@ -293,10 +311,13 @@ impl super::Collector for OpenclawCollector {
                             continue;
                         }
                         seen.insert(action.id.clone());
-                        
-                        info!("📍 Detected: {} - {}", action.action_type, 
-                              truncate(&action.content, 60));
-                        
+
+                        info!(
+                            "📍 Detected: {} - {}",
+                            action.action_type,
+                            truncate(&action.content, 60)
+                        );
+
                         if tx.send(action).await.is_err() {
                             error!("Failed to send action to analyzer");
                             return Ok(());
@@ -389,10 +410,10 @@ mod tests {
     fn test_parse_exec_log() {
         let collector = OpenclawCollector::new();
         let line = r#"{"type":"message","id":"test123","parentId":"parent","timestamp":"2026-01-27T23:50:46.138Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"tool1","name":"exec","arguments":{"command":"ls -la"}}]}}"#;
-        
+
         let actions = collector.parse_log_line(line);
         assert_eq!(actions.len(), 1);
-        
+
         let action = &actions[0];
         assert_eq!(action.action_type, ActionType::Exec);
         assert_eq!(action.agent, AgentType::OpenClaw);
@@ -403,10 +424,10 @@ mod tests {
     fn test_parse_write_log() {
         let collector = OpenclawCollector::new();
         let line = r#"{"type":"message","id":"test123","parentId":"parent","timestamp":"2026-01-27T23:50:46.138Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"tool1","name":"Write","arguments":{"path":"/tmp/test.txt","content":"hello"}}]}}"#;
-        
+
         let actions = collector.parse_log_line(line);
         assert_eq!(actions.len(), 1);
-        
+
         let action = &actions[0];
         assert_eq!(action.action_type, ActionType::FileWrite);
         assert_eq!(action.target, Some("/tmp/test.txt".to_string()));

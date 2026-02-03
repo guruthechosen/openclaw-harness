@@ -16,7 +16,9 @@ pub struct CursorCollector {
 }
 
 impl Default for CursorCollector {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CursorCollector {
@@ -44,7 +46,7 @@ impl super::Collector for CursorCollector {
 
         // TODO: Implement Cursor-specific log parsing
         // May need VSCode Extension API integration
-        
+
         Ok(())
     }
 

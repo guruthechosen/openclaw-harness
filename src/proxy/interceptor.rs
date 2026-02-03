@@ -2,7 +2,7 @@
 //! Supports Anthropic, OpenAI-compatible (GPT, Codex, Kimi K2, Moonshot), and Google Gemini.
 
 use crate::rules::{Rule, RuleAction};
-use crate::{AgentAction, AgentType, ActionType, RiskLevel};
+use crate::{ActionType, AgentAction, AgentType, RiskLevel};
 use chrono::Utc;
 use serde_json::Value;
 use tracing::{info, warn};
@@ -29,7 +29,9 @@ pub fn detect_provider(body: &[u8]) -> ApiProvider {
 pub fn detect_provider_from_value(json: &Value) -> ApiProvider {
     // Anthropic: has "content" array with objects containing "type": "tool_use"
     if let Some(content) = json.get("content").and_then(|c| c.as_array()) {
-        if content.iter().any(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_use"))
+        if content
+            .iter()
+            .any(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_use"))
             || json.get("type").and_then(|t| t.as_str()) == Some("message")
         {
             return ApiProvider::Anthropic;
@@ -61,31 +63,41 @@ pub struct InterceptResult {
 fn extract_check_material(name: &str, input: &Value) -> (ActionType, String, Option<String>) {
     match name {
         "exec" => {
-            let cmd = input.get("command")
+            let cmd = input
+                .get("command")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
             (ActionType::Exec, cmd.to_string(), None)
         }
         "Write" | "write" => {
-            let path = input.get("path")
+            let path = input
+                .get("path")
                 .or_else(|| input.get("file_path"))
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            let content = input.get("content")
+            let content = input
+                .get("content")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            (ActionType::FileWrite, content.to_string(), Some(path.to_string()))
+            (
+                ActionType::FileWrite,
+                content.to_string(),
+                Some(path.to_string()),
+            )
         }
         "Edit" | "edit" => {
-            let path = input.get("path")
+            let path = input
+                .get("path")
                 .or_else(|| input.get("file_path"))
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            let old = input.get("oldText")
+            let old = input
+                .get("oldText")
                 .or_else(|| input.get("old_string"))
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            let new = input.get("newText")
+            let new = input
+                .get("newText")
                 .or_else(|| input.get("new_string"))
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
@@ -93,25 +105,41 @@ fn extract_check_material(name: &str, input: &Value) -> (ActionType, String, Opt
             (ActionType::FileWrite, content, Some(path.to_string()))
         }
         "web_fetch" => {
-            let url = input.get("url")
+            let url = input
+                .get("url")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            (ActionType::HttpRequest, url.to_string(), Some(url.to_string()))
+            (
+                ActionType::HttpRequest,
+                url.to_string(),
+                Some(url.to_string()),
+            )
         }
         "message" => {
-            let target = input.get("target")
+            let target = input
+                .get("target")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            let msg = input.get("message")
+            let msg = input
+                .get("message")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            (ActionType::MessageSend, msg.to_string(), Some(target.to_string()))
+            (
+                ActionType::MessageSend,
+                msg.to_string(),
+                Some(target.to_string()),
+            )
         }
         "browser" => {
-            let url = input.get("targetUrl")
+            let url = input
+                .get("targetUrl")
                 .and_then(|v| v.as_str())
                 .unwrap_or_default();
-            (ActionType::BrowserAction, url.to_string(), Some(url.to_string()))
+            (
+                ActionType::BrowserAction,
+                url.to_string(),
+                Some(url.to_string()),
+            )
         }
         _ => {
             let content = serde_json::to_string(input).unwrap_or_default();
@@ -176,7 +204,11 @@ pub fn check_tool_use(
 
 /// Process a full non-streaming API response (auto-detects provider).
 /// Returns (modified_body, list_of_intercepts).
-pub fn intercept_response(body: &[u8], rules: &[Rule], enforce: bool) -> (Vec<u8>, Vec<InterceptResult>) {
+pub fn intercept_response(
+    body: &[u8],
+    rules: &[Rule],
+    enforce: bool,
+) -> (Vec<u8>, Vec<InterceptResult>) {
     let mut json: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(_) => return (body.to_vec(), vec![]),
@@ -199,10 +231,20 @@ fn block_message(intercept: &InterceptResult) -> String {
     )
 }
 
-fn intercept_anthropic(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool) -> (Vec<u8>, Vec<InterceptResult>) {
+fn intercept_anthropic(
+    json: &mut Value,
+    body: &[u8],
+    rules: &[Rule],
+    enforce: bool,
+) -> (Vec<u8>, Vec<InterceptResult>) {
     let content = match json.get_mut("content").and_then(|c| c.as_array_mut()) {
         Some(arr) => arr,
-        None => return (serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()), vec![]),
+        None => {
+            return (
+                serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()),
+                vec![],
+            )
+        }
     };
 
     let mut intercepts = Vec::new();
@@ -211,8 +253,14 @@ fn intercept_anthropic(json: &mut Value, body: &[u8], rules: &[Rule], enforce: b
         if block.get("type").and_then(|t| t.as_str()) != Some("tool_use") {
             continue;
         }
-        let name = block.get("name").and_then(|n| n.as_str()).unwrap_or_default();
-        let input = block.get("input").cloned().unwrap_or(Value::Object(Default::default()));
+        let name = block
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or_default();
+        let input = block
+            .get("input")
+            .cloned()
+            .unwrap_or(Value::Object(Default::default()));
 
         if let Some(result) = check_tool_use(i, name, &input, rules) {
             intercepts.push(result);
@@ -221,7 +269,10 @@ fn intercept_anthropic(json: &mut Value, body: &[u8], rules: &[Rule], enforce: b
 
     if enforce {
         for intercept in intercepts.iter().rev() {
-            if matches!(intercept.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk) {
+            if matches!(
+                intercept.action,
+                RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+            ) {
                 content[intercept.block_index] = serde_json::json!({
                     "type": "text",
                     "text": block_message(intercept)
@@ -230,10 +281,18 @@ fn intercept_anthropic(json: &mut Value, body: &[u8], rules: &[Rule], enforce: b
         }
     }
 
-    (serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()), intercepts)
+    (
+        serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()),
+        intercepts,
+    )
 }
 
-fn intercept_openai(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool) -> (Vec<u8>, Vec<InterceptResult>) {
+fn intercept_openai(
+    json: &mut Value,
+    body: &[u8],
+    rules: &[Rule],
+    enforce: bool,
+) -> (Vec<u8>, Vec<InterceptResult>) {
     let mut intercepts = Vec::new();
 
     let choices = match json.get("choices").and_then(|c| c.as_array()) {
@@ -243,15 +302,25 @@ fn intercept_openai(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
 
     // Collect all tool calls with their location
     for (ci, choice) in choices.iter().enumerate() {
-        let tool_calls = match choice.pointer("/message/tool_calls").and_then(|t| t.as_array()) {
+        let tool_calls = match choice
+            .pointer("/message/tool_calls")
+            .and_then(|t| t.as_array())
+        {
             Some(arr) => arr,
             None => continue,
         };
 
         for (ti, tc) in tool_calls.iter().enumerate() {
-            let name = tc.pointer("/function/name").and_then(|n| n.as_str()).unwrap_or_default();
-            let args_str = tc.pointer("/function/arguments").and_then(|a| a.as_str()).unwrap_or("{}");
-            let input: Value = serde_json::from_str(args_str).unwrap_or(Value::Object(Default::default()));
+            let name = tc
+                .pointer("/function/name")
+                .and_then(|n| n.as_str())
+                .unwrap_or_default();
+            let args_str = tc
+                .pointer("/function/arguments")
+                .and_then(|a| a.as_str())
+                .unwrap_or("{}");
+            let input: Value =
+                serde_json::from_str(args_str).unwrap_or(Value::Object(Default::default()));
 
             // Encode choice_index + tool_index into block_index
             let block_index = ci * 1000 + ti;
@@ -262,26 +331,37 @@ fn intercept_openai(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
     }
 
     if enforce && !intercepts.is_empty() {
-        let blocked_indices: std::collections::HashSet<usize> = intercepts.iter()
-            .filter(|i| matches!(i.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk))
+        let blocked_indices: std::collections::HashSet<usize> = intercepts
+            .iter()
+            .filter(|i| {
+                matches!(
+                    i.action,
+                    RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+                )
+            })
             .map(|i| i.block_index)
             .collect();
 
         if !blocked_indices.is_empty() {
-            let choices_arr = json.get_mut("choices").and_then(|c| c.as_array_mut()).unwrap();
+            let choices_arr = json
+                .get_mut("choices")
+                .and_then(|c| c.as_array_mut())
+                .unwrap();
             for (ci, choice) in choices_arr.iter_mut().enumerate() {
                 let msg = match choice.get_mut("message") {
                     Some(m) => m,
                     None => continue,
                 };
-                if let Some(tool_calls) = msg.get("tool_calls").and_then(|t| t.as_array()).cloned() {
+                if let Some(tool_calls) = msg.get("tool_calls").and_then(|t| t.as_array()).cloned()
+                {
                     let mut blocked_msgs = Vec::new();
                     let mut remaining = Vec::new();
 
                     for (ti, tc) in tool_calls.into_iter().enumerate() {
                         let idx = ci * 1000 + ti;
                         if blocked_indices.contains(&idx) {
-                            let intercept = intercepts.iter().find(|i| i.block_index == idx).unwrap();
+                            let intercept =
+                                intercepts.iter().find(|i| i.block_index == idx).unwrap();
                             blocked_msgs.push(block_message(intercept));
                         } else {
                             remaining.push(tc);
@@ -295,7 +375,11 @@ fn intercept_openai(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
                     }
 
                     if !blocked_msgs.is_empty() {
-                        let existing = msg.get("content").and_then(|c| c.as_str()).unwrap_or("").to_string();
+                        let existing = msg
+                            .get("content")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("")
+                            .to_string();
                         let new_content = if existing.is_empty() {
                             blocked_msgs.join("\n")
                         } else {
@@ -308,10 +392,18 @@ fn intercept_openai(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
         }
     }
 
-    (serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()), intercepts)
+    (
+        serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()),
+        intercepts,
+    )
 }
 
-fn intercept_gemini(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool) -> (Vec<u8>, Vec<InterceptResult>) {
+fn intercept_gemini(
+    json: &mut Value,
+    body: &[u8],
+    rules: &[Rule],
+    enforce: bool,
+) -> (Vec<u8>, Vec<InterceptResult>) {
     let mut intercepts = Vec::new();
 
     let candidates = match json.get("candidates").and_then(|c| c.as_array()) {
@@ -320,7 +412,10 @@ fn intercept_gemini(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
     };
 
     for (ci, candidate) in candidates.iter().enumerate() {
-        let parts = match candidate.pointer("/content/parts").and_then(|p| p.as_array()) {
+        let parts = match candidate
+            .pointer("/content/parts")
+            .and_then(|p| p.as_array())
+        {
             Some(arr) => arr,
             None => continue,
         };
@@ -331,7 +426,10 @@ fn intercept_gemini(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
                 None => continue,
             };
             let name = fc.get("name").and_then(|n| n.as_str()).unwrap_or_default();
-            let args = fc.get("args").cloned().unwrap_or(Value::Object(Default::default()));
+            let args = fc
+                .get("args")
+                .cloned()
+                .unwrap_or(Value::Object(Default::default()));
 
             let block_index = ci * 1000 + pi;
             if let Some(result) = check_tool_use(block_index, name, &args, rules) {
@@ -341,15 +439,27 @@ fn intercept_gemini(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
     }
 
     if enforce && !intercepts.is_empty() {
-        let blocked_indices: std::collections::HashSet<usize> = intercepts.iter()
-            .filter(|i| matches!(i.action, RuleAction::CriticalAlert | RuleAction::PauseAndAsk))
+        let blocked_indices: std::collections::HashSet<usize> = intercepts
+            .iter()
+            .filter(|i| {
+                matches!(
+                    i.action,
+                    RuleAction::CriticalAlert | RuleAction::PauseAndAsk
+                )
+            })
             .map(|i| i.block_index)
             .collect();
 
         if !blocked_indices.is_empty() {
-            let candidates_arr = json.get_mut("candidates").and_then(|c| c.as_array_mut()).unwrap();
+            let candidates_arr = json
+                .get_mut("candidates")
+                .and_then(|c| c.as_array_mut())
+                .unwrap();
             for (ci, candidate) in candidates_arr.iter_mut().enumerate() {
-                let parts = match candidate.pointer_mut("/content/parts").and_then(|p| p.as_array_mut()) {
+                let parts = match candidate
+                    .pointer_mut("/content/parts")
+                    .and_then(|p| p.as_array_mut())
+                {
                     Some(arr) => arr,
                     None => continue,
                 };
@@ -367,7 +477,10 @@ fn intercept_gemini(json: &mut Value, body: &[u8], rules: &[Rule], enforce: bool
         }
     }
 
-    (serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()), intercepts)
+    (
+        serde_json::to_vec(&json).unwrap_or_else(|_| body.to_vec()),
+        intercepts,
+    )
 }
 
 /// Format a Telegram alert message for an intercept
@@ -397,7 +510,6 @@ pub fn format_telegram_alert(intercept: &InterceptResult) -> String {
         override_note,
     )
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -523,7 +635,10 @@ mod tests {
         assert_eq!(content[0]["type"], "text");
         // Second block should be replaced with text
         assert_eq!(content[1]["type"], "text");
-        assert!(content[1]["text"].as_str().unwrap().contains("OpenClaw Harness blocked"));
+        assert!(content[1]["text"]
+            .as_str()
+            .unwrap()
+            .contains("OpenClaw Harness blocked"));
         // Third block should remain tool_use (safe)
         assert_eq!(content[2]["type"], "tool_use");
     }
@@ -594,7 +709,10 @@ mod tests {
             "type": "message",
             "content": [{"type": "tool_use", "id": "t1", "name": "exec", "input": {}}]
         });
-        assert_eq!(detect_provider(&serde_json::to_vec(&body).unwrap()), ApiProvider::Anthropic);
+        assert_eq!(
+            detect_provider(&serde_json::to_vec(&body).unwrap()),
+            ApiProvider::Anthropic
+        );
     }
 
     #[test]
@@ -603,7 +721,10 @@ mod tests {
             "id": "chatcmpl-xxx",
             "choices": [{"message": {"role": "assistant", "content": null}}]
         });
-        assert_eq!(detect_provider(&serde_json::to_vec(&body).unwrap()), ApiProvider::OpenAI);
+        assert_eq!(
+            detect_provider(&serde_json::to_vec(&body).unwrap()),
+            ApiProvider::OpenAI
+        );
     }
 
     #[test]
@@ -611,7 +732,10 @@ mod tests {
         let body = serde_json::json!({
             "candidates": [{"content": {"parts": [{"text": "hello"}]}}]
         });
-        assert_eq!(detect_provider(&serde_json::to_vec(&body).unwrap()), ApiProvider::Gemini);
+        assert_eq!(
+            detect_provider(&serde_json::to_vec(&body).unwrap()),
+            ApiProvider::Gemini
+        );
     }
 
     // --- OpenAI format tests ---
@@ -681,10 +805,18 @@ mod tests {
 
         let modified_json: Value = serde_json::from_slice(&modified).unwrap();
         // Dangerous tool_call removed, safe one remains
-        let tool_calls = modified_json.pointer("/choices/0/message/tool_calls").unwrap().as_array().unwrap();
+        let tool_calls = modified_json
+            .pointer("/choices/0/message/tool_calls")
+            .unwrap()
+            .as_array()
+            .unwrap();
         assert_eq!(tool_calls.len(), 1);
         // Block message added to content
-        let content = modified_json.pointer("/choices/0/message/content").unwrap().as_str().unwrap();
+        let content = modified_json
+            .pointer("/choices/0/message/content")
+            .unwrap()
+            .as_str()
+            .unwrap();
         assert!(content.contains("OpenClaw Harness blocked"));
     }
 
@@ -731,11 +863,18 @@ mod tests {
         assert_eq!(intercepts.len(), 1);
 
         let modified_json: Value = serde_json::from_slice(&modified).unwrap();
-        let parts = modified_json.pointer("/candidates/0/content/parts").unwrap().as_array().unwrap();
+        let parts = modified_json
+            .pointer("/candidates/0/content/parts")
+            .unwrap()
+            .as_array()
+            .unwrap();
         // First part unchanged
         assert!(parts[0].get("text").is_some());
         // Second part replaced with text
         assert!(parts[1].get("functionCall").is_none());
-        assert!(parts[1]["text"].as_str().unwrap().contains("OpenClaw Harness blocked"));
+        assert!(parts[1]["text"]
+            .as_str()
+            .unwrap()
+            .contains("OpenClaw Harness blocked"));
     }
 }

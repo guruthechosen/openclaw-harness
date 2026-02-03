@@ -5,7 +5,11 @@ use openclaw_harness::proxy::start_proxy;
 use openclaw_harness::{AlertConfig, TelegramConfig};
 use tracing::info;
 
-pub async fn start(port: Option<u16>, target: Option<String>, mode: Option<String>) -> anyhow::Result<()> {
+pub async fn start(
+    port: Option<u16>,
+    target: Option<String>,
+    mode: Option<String>,
+) -> anyhow::Result<()> {
     let mut config = ProxyConfig::default();
 
     if let Some(p) = port {
@@ -55,7 +59,9 @@ pub async fn status() -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     match client.get("http://127.0.0.1:9090/health").send().await {
         Ok(_) => println!("✅ OpenClaw Harness proxy is running on 127.0.0.1:9090"),
-        Err(_) => println!("❌ OpenClaw Harness proxy is not running (or not on default port 9090)"),
+        Err(_) => {
+            println!("❌ OpenClaw Harness proxy is not running (or not on default port 9090)")
+        }
     }
     Ok(())
 }

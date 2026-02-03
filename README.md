@@ -224,11 +224,11 @@ flowchart LR
 > **📦 The plugin has been split into its own repository: [openclaw-harness-plugin](https://github.com/sparkishy/openclaw-harness-plugin)**
 
 ```bash
-# Install the plugin
-openclaw plugins install @openclaw/harness-guard
+# Install the plugin (included in this repo)
+openclaw plugins install -l ./openclaw-plugin
 ```
 
-The plugin works in **Standalone** mode (built-in rules only) or **Connected** mode (full features when paired with this daemon). See the [plugin repo](https://github.com/sparkishy/openclaw-harness-plugin) for details.
+The plugin works in **Standalone** mode (built-in rules only, no daemon needed) or **Connected** mode (full features when daemon is running on port 8380). See [`openclaw-plugin/README.md`](openclaw-plugin/README.md) for details.
 
 ---
 

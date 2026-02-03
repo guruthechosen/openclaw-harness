@@ -7,8 +7,6 @@ use crate::rules::Rule;
 use super::interceptor::{check_tool_use, InterceptResult, ApiProvider};
 use crate::rules::RuleAction;
 use serde_json::Value;
-use tracing::{info, warn};
-
 /// A parsed SSE event
 #[derive(Debug, Clone)]
 pub struct SseEvent {

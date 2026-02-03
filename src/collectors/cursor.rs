@@ -5,7 +5,7 @@
 //! - Workspace file changes
 //! - Terminal command execution
 
-use super::super::{AgentAction, AgentType, ActionType};
+use super::super::AgentAction;
 use async_trait::async_trait;
 use std::path::PathBuf;
 use tokio::sync::mpsc;

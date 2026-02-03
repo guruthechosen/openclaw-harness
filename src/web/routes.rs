@@ -1,7 +1,7 @@
 //! REST API routes
 
 use super::AppState;
-use crate::rules::{default_rules, Rule, RuleAction};
+use crate::rules::{Rule, RuleAction};
 use crate::RiskLevel;
 use axum::{
     extract::{Path, Query, State},

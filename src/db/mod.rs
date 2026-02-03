@@ -1,6 +1,6 @@
 //! SQLite database for storing action logs and analysis results
 
-use super::{AgentAction, AnalysisResult, AgentType, ActionType, RiskLevel};
+use super::{AgentAction, AnalysisResult, AgentType, ActionType};
 use rusqlite::{Connection, params};
 use std::path::Path;
 use tracing::info;

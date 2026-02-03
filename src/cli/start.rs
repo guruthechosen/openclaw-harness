@@ -91,7 +91,7 @@ async fn block_action(action: &AgentAction) -> anyhow::Result<()> {
     // This is a best-effort approach - OpenClaw may have already executed the action
     
     // Method 1: Send SIGINT to the OpenClaw process if we can find it
-    if let Some(session_id) = &action.session_id {
+    if let Some(_session_id) = &action.session_id {
         // Try to find the session and interrupt it
         // Try openclaw first, then clawdbot for backward compat
         let result = Command::new("pkill")

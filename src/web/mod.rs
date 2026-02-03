@@ -5,6 +5,7 @@
 pub mod routes;
 pub mod ws;
 
+#[allow(unused_imports)]
 use axum::{
     routing::{get, post, put, delete},
     Router,
@@ -17,7 +18,7 @@ use tracing::info;
 
 use crate::{AgentAction, AnalysisResult};
 use crate::rules::Rule;
-use crate::proxy::config::{ProxyConfig, ProxyMode};
+use crate::proxy::config::ProxyConfig;
 
 /// Shared state for the web server
 pub struct AppState {

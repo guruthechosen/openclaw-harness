@@ -85,7 +85,6 @@ let daemonDown = false;
 
 async function fetchRules(apiUrl, logger) {
   try {
-    logger?.info?.(`[harness-guard] Fetching rules from: ${apiUrl}/api/rules`);
     const res = await fetch(`${apiUrl}/api/rules`);
     if (!res.ok) {
       logger?.warn?.(`[harness-guard] Failed to fetch rules: HTTP ${res.status}`);
@@ -228,19 +227,14 @@ export default function register(api) {
   const telegramToken = cfg.telegramBotToken || null;
   const telegramChatId = cfg.telegramChatId || null;
 
-  if (!enabled) {
-    api.logger?.info?.("[harness-guard] Plugin disabled");
-    return;
-  }
-
-  api.logger?.info?.("[harness-guard] Registering before_tool_call hook (exec + write/edit protection)");
+  if (!enabled) return;
 
   api.on(
     "before_tool_call",
     async (event, _ctx) => {
       const toolName = event?.toolName ?? event?.name;
       const params = event?.params ?? event?.input;
-      api.logger?.info?.(`[harness-guard] HOOK FIRED: tool=${toolName} keys=${Object.keys(event||{}).join(',')} paramKeys=${Object.keys(params||{}).join(',')}`);
+      // Minimal logging — only log when something is actually blocked
 
       // ===== WRITE/EDIT TOOL INTERCEPTION =====
       if (["write", "edit", "Write", "Edit"].includes(toolName)) {

@@ -16,6 +16,7 @@ use std::process::Command;
 // ============================================================
 
 const PATCH_MARKER: &str = "// OPENCLAW_HARNESS_PATCH_v1";
+#[allow(dead_code)]
 const BACKUP_EXT: &str = ".orig";
 
 /// The anchor text we search for in bash-tools.exec.js to find the injection point.

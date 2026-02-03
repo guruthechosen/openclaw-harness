@@ -1,11 +1,30 @@
 {
   "name": "@openclaw/harness-guard",
-  "version": "0.2.0",
-  "description": "OpenClaw Harness Guard — blocks dangerous exec commands based on OpenClaw Harness rules",
+  "version": "0.3.0",
+  "description": "Lightweight security guard plugin for OpenClaw — blocks dangerous commands before they execute",
   "main": "index.js",
+  "type": "module",
   "openclaw": {
     "extensions": ["./index.js"]
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sparkishy/openclaw-harness-plugin"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "security",
+    "exec-guard",
+    "harness",
+    "ai-safety",
+    "tool-call-guard",
+    "command-filter"
+  ],
   "license": "MIT",
-  "keywords": ["openclaw", "plugin", "security", "exec-guard", "harness"]
+  "author": "sparkishy",
+  "bugs": {
+    "url": "https://github.com/sparkishy/openclaw-harness-plugin/issues"
+  },
+  "homepage": "https://github.com/sparkishy/openclaw-harness-plugin#readme"
 }

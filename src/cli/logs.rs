@@ -2,8 +2,8 @@
 
 pub async fn run(
     tail: usize,
-    agent: Option<String>,
-    level: Option<String>,
+    _agent: Option<String>,
+    _level: Option<String>,
 ) -> anyhow::Result<()> {
     println!("📋 Recent Activity (last {} entries)", tail);
     println!("─────────────────────────────────────");

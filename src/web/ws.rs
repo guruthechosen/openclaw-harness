@@ -9,7 +9,6 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
-use tokio::sync::broadcast;
 use tracing::{info, warn};
 
 use super::{AppState, WebEvent};

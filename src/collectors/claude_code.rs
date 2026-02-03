@@ -14,6 +14,10 @@ pub struct ClaudeCodeCollector {
     log_dir: PathBuf,
 }
 
+impl Default for ClaudeCodeCollector {
+    fn default() -> Self { Self::new() }
+}
+
 impl ClaudeCodeCollector {
     pub fn new() -> Self {
         let home = dirs::home_dir().unwrap_or_default();

@@ -110,6 +110,7 @@ enum ProxyAction {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum RulesAction {
     /// List all rules
     List,

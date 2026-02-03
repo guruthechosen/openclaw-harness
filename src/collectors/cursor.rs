@@ -15,6 +15,10 @@ pub struct CursorCollector {
     log_dir: PathBuf,
 }
 
+impl Default for CursorCollector {
+    fn default() -> Self { Self::new() }
+}
+
 impl CursorCollector {
     pub fn new() -> Self {
         let home = dirs::home_dir().unwrap_or_default();

@@ -404,8 +404,7 @@ impl StreamInterceptor {
                 ]
             } else {
                 // Safe or monitor mode → flush buffer
-                let events = std::mem::take(&mut self.buffer);
-                events
+                std::mem::take(&mut self.buffer)
             }
         } else {
             vec![event]
@@ -456,6 +455,10 @@ pub fn parse_sse_events(raw: &str) -> Vec<SseEvent> {
 /// Yields complete SSE event text blocks (delimited by blank lines).
 pub struct SseLineBuffer {
     buf: String,
+}
+
+impl Default for SseLineBuffer {
+    fn default() -> Self { Self::new() }
 }
 
 impl SseLineBuffer {

@@ -11,18 +11,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Match type for a rule
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchType {
+    #[default]
     Regex,
     Keyword,
     Template,
-}
-
-impl Default for MatchType {
-    fn default() -> Self {
-        MatchType::Regex
-    }
 }
 
 /// Keyword matching configuration
@@ -126,12 +121,13 @@ fn default_risk() -> RiskLevel {
 }
 
 /// What to do when a rule matches
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RuleAction {
     /// Just log the action
     LogOnly,
     /// Send an alert
+    #[default]
     Alert,
     /// Pause and ask for user approval
     PauseAndAsk,
@@ -139,12 +135,6 @@ pub enum RuleAction {
     Block,
     /// Critical alert + attempt to interrupt
     CriticalAlert,
-}
-
-impl Default for RuleAction {
-    fn default() -> Self {
-        RuleAction::Alert
-    }
 }
 
 impl Rule {
@@ -415,6 +405,7 @@ pub struct TemplateDefinition {
     pub category: &'static str,
     pub required_params: &'static [&'static str],
     pub optional_params: &'static [&'static str],
+    #[allow(clippy::type_complexity)]
     expand_fn: fn(&TemplateParams) -> (Vec<String>, Vec<ActionType>, String),
 }
 

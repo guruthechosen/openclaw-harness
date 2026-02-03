@@ -25,6 +25,12 @@ pub struct OpenclawCollector {
     seen_ids: Arc<Mutex<HashSet<String>>>,
 }
 
+impl Default for OpenclawCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OpenclawCollector {
     pub fn new() -> Self {
         let home = dirs::home_dir().unwrap_or_default();
@@ -156,7 +162,7 @@ impl OpenclawCollector {
         if let Ok(entries) = std::fs::read_dir(&self.sessions_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "jsonl") {
+                if path.extension().is_some_and(|ext| ext == "jsonl") {
                     files.push(path);
                 }
             }

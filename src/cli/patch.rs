@@ -32,6 +32,10 @@ fn run_openclaw(mode: PatchMode) -> Result<()> {
             if let Some(version) = clawdbot::detect_clawdbot_version() {
                 println!("📌 OpenClaw version: {}", version);
             }
+            if clawdbot::has_builtin_before_tool_call(&dist)? {
+                println!("✅ OpenClaw has built-in before_tool_call hooks (no patch needed)");
+                return Ok(());
+            }
             let v1 = clawdbot::is_patched(&dist)?;
             let v2 = clawdbot::is_v2_patched(&dist).unwrap_or(false);
             if v1 && v2 {

@@ -50,12 +50,14 @@ The web dashboard is available at **http://localhost:8380**.
 ### Patch OpenClaw (recommended)
 
 ```bash
-# Inject before_tool_call hook into OpenClaw's exec tool
+# Inject before_tool_call hook into OpenClaw's exec tool (legacy builds)
 openclaw-harness patch openclaw
 
 # Verify
 openclaw-harness patch openclaw --check
 ```
+
+> **Note:** OpenClaw **2026.2.x+** ships with built-in `before_tool_call` hooks, so no patch is required. `--check` will report that hooks are built-in.
 
 ### Docker
 

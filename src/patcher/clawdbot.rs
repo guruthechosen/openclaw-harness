@@ -207,6 +207,29 @@ fn pi_tools_file(dist: &Path) -> PathBuf {
     dist.join("agents/pi-tools.js")
 }
 
+fn bundled_loader_file(dist: &Path) -> Option<PathBuf> {
+    let entries = fs::read_dir(dist).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            if name.starts_with("loader-") && name.ends_with(".js") {
+                return Some(path);
+            }
+        }
+    }
+    None
+}
+
+pub fn has_builtin_before_tool_call(dist: &Path) -> Result<bool> {
+    let Some(loader) = bundled_loader_file(dist) else {
+        return Ok(false);
+    };
+    let content = fs::read_to_string(&loader)
+        .with_context(|| format!("Cannot read {}", loader.display()))?;
+    Ok(content.contains("wrapToolWithBeforeToolCallHook")
+        && content.contains("before_tool_call"))
+}
+
 // ============================================================
 // Check patch status
 // ============================================================
@@ -215,6 +238,10 @@ fn pi_tools_file(dist: &Path) -> PathBuf {
 pub fn is_patched(dist: &Path) -> Result<bool> {
     let file = exec_file(dist);
     if !file.exists() {
+        // New bundled OpenClaw builds may not have agents/*.js
+        if has_builtin_before_tool_call(dist)? {
+            return Ok(true);
+        }
         bail!("Exec tool file not found: {}", file.display());
     }
     let content =
@@ -226,6 +253,10 @@ pub fn is_patched(dist: &Path) -> Result<bool> {
 pub fn is_v2_patched(dist: &Path) -> Result<bool> {
     let file = pi_tools_file(dist);
     if !file.exists() {
+        // New bundled OpenClaw builds may not have agents/*.js
+        if has_builtin_before_tool_call(dist)? {
+            return Ok(true);
+        }
         bail!("pi-tools.js not found: {}", file.display());
     }
     let content =
@@ -237,7 +268,7 @@ pub fn is_v2_patched(dist: &Path) -> Result<bool> {
 // Version detection
 // ============================================================
 
-const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29", "2026.1.30"];
+const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29", "2026.1.30", "2026.2.2-3"];
 
 pub fn detect_clawdbot_version() -> Option<String> {
     for bin_name in &["openclaw", "clawdbot"] {
@@ -273,6 +304,12 @@ pub fn apply_patch(dist: &Path) -> Result<()> {
         }
     } else {
         println!("⚠️  Could not detect OpenClaw version");
+    }
+
+    // New bundled OpenClaw builds already wrap tools with before_tool_call
+    if has_builtin_before_tool_call(dist)? {
+        println!("✅ OpenClaw has built-in before_tool_call hooks (no patch needed)");
+        return Ok(());
     }
 
     // === V1 Patch: exec tool ===

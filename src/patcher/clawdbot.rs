@@ -224,10 +224,9 @@ pub fn has_builtin_before_tool_call(dist: &Path) -> Result<bool> {
     let Some(loader) = bundled_loader_file(dist) else {
         return Ok(false);
     };
-    let content = fs::read_to_string(&loader)
-        .with_context(|| format!("Cannot read {}", loader.display()))?;
-    Ok(content.contains("wrapToolWithBeforeToolCallHook")
-        && content.contains("before_tool_call"))
+    let content =
+        fs::read_to_string(&loader).with_context(|| format!("Cannot read {}", loader.display()))?;
+    Ok(content.contains("wrapToolWithBeforeToolCallHook") && content.contains("before_tool_call"))
 }
 
 // ============================================================
@@ -268,7 +267,13 @@ pub fn is_v2_patched(dist: &Path) -> Result<bool> {
 // Version detection
 // ============================================================
 
-const SUPPORTED_VERSIONS: &[&str] = &["2026.1.24-3", "2026.1.29", "2026.1.30", "2026.2.2-3"];
+const SUPPORTED_VERSIONS: &[&str] = &[
+    "2026.1.24-3",
+    "2026.1.29",
+    "2026.1.30",
+    "2026.2.2-3",
+    "2026.2.3-1",
+];
 
 pub fn detect_clawdbot_version() -> Option<String> {
     for bin_name in &["openclaw", "clawdbot"] {

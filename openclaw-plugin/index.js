@@ -63,6 +63,27 @@ const FALLBACK_RULES = [
   { name: "self_protect_patch_revert", pattern: "patch (openclaw|clawdbot).*(--revert|-r)|bash-tools\\.exec\\.js\\.orig", action: "CriticalAlert", risk_level: "critical", description: "Block reverting OpenClaw patch", enabled: true },
 ];
 
+// Write/Edit content scanning rules (script bypass prevention)
+const DANGEROUS_CONTENT_PATTERNS = [
+  { name: "content_dangerous_rm", pattern: /rm\s+(-rf?|--force|--recursive)\s+[~\/]/i, risk: "critical", description: "Dangerous recursive delete in file content" },
+  { name: "content_ssh_exfil", pattern: /\.ssh\/(id_rsa|id_ed25519|id_ecdsa)|cat\s+.*\.ssh\//i, risk: "critical", description: "SSH private key access in file content" },
+  { name: "content_curl_bash", pattern: /(curl|wget)\s+.*\|\s*(bash|sh|zsh)/i, risk: "critical", description: "Pipe remote content to shell in file content" },
+  { name: "content_reverse_shell", pattern: /\/dev\/tcp\/|nc\s+.*-e\s+|ncat\s+.*-e\s+|bash\s+-i\s+>&/i, risk: "critical", description: "Reverse shell pattern in file content" },
+  { name: "content_chmod_777", pattern: /chmod\s+777\s+/i, risk: "warning", description: "Overly permissive chmod in file content" },
+];
+
+// Phase 1 rate limits (per-minute, in-process)
+const RATE_LIMITS = {
+  windowMs: 60_000,
+  execPerMinute: 60,
+  writeEditPerMinute: 40,
+};
+const rateState = {
+  windowStart: Date.now(),
+  execCount: 0,
+  writeEditCount: 0,
+};
+
 // Self-protection exec patterns that are ALWAYS enforced (even when API works)
 const ALWAYS_ENFORCE_EXEC = [
   { name: "self_protect_process", pattern: /(kill|pkill|killall)\s+.*(openclaw|moltbot|safebot|harness)/i },
@@ -213,6 +234,46 @@ function extractCommand(params) {
   return null;
 }
 
+function extractWriteEditContent(params) {
+  if (!params || typeof params !== "object") return "";
+  const parts = [
+    typeof params.content === "string" ? params.content : "",
+    typeof params.newText === "string" ? params.newText : "",
+    typeof params.new_string === "string" ? params.new_string : "",
+  ].filter(Boolean);
+  return parts.join("\n");
+}
+
+function scanDangerousContent(content) {
+  if (!content || typeof content !== "string") return null;
+  for (const rule of DANGEROUS_CONTENT_PATTERNS) {
+    if (rule.pattern.test(content)) return rule;
+  }
+  return null;
+}
+
+function checkRateLimit(kind) {
+  const now = Date.now();
+  if (now - rateState.windowStart >= RATE_LIMITS.windowMs) {
+    rateState.windowStart = now;
+    rateState.execCount = 0;
+    rateState.writeEditCount = 0;
+  }
+  if (kind === "exec") {
+    rateState.execCount += 1;
+    if (rateState.execCount > RATE_LIMITS.execPerMinute) {
+      return { blocked: true, reason: `Rate limit exceeded: exec > ${RATE_LIMITS.execPerMinute}/min` };
+    }
+  }
+  if (kind === "write_edit") {
+    rateState.writeEditCount += 1;
+    if (rateState.writeEditCount > RATE_LIMITS.writeEditPerMinute) {
+      return { blocked: true, reason: `Rate limit exceeded: write/edit > ${RATE_LIMITS.writeEditPerMinute}/min` };
+    }
+  }
+  return { blocked: false };
+}
+
 // ---------------------------------------------------------------------------
 // Plugin entry
 // ---------------------------------------------------------------------------
@@ -294,7 +355,39 @@ export default function register(api) {
           };
         }
 
-        // write/edit that isn't a protected path — allow
+        // Phase 1: rate limit write/edit
+        const writeRate = checkRateLimit("write_edit");
+        if (writeRate.blocked) {
+          return {
+            block: true,
+            blockReason: `🛡️ Blocked by OpenClaw Harness Guard\nReason: ${writeRate.reason}`,
+          };
+        }
+
+        // Phase 1: content scanning for write/edit
+        const content = extractWriteEditContent(params);
+        const contentMatch = scanDangerousContent(content);
+        if (contentMatch) {
+          if (telegramToken && telegramChatId) {
+            const alertText =
+              `🚨 <b>CONTENT BLOCK</b>\n` +
+              `<b>Tool:</b> ${toolName}\n` +
+              `<b>Path:</b> <code>${String(filePath).slice(0, 200)}</code>\n` +
+              `<b>Rule:</b> ${contentMatch.name}\n` +
+              `<b>Risk:</b> ${contentMatch.risk}`;
+            void sendTelegramAlert(telegramToken, telegramChatId, alertText, api.logger);
+          }
+          return {
+            block: true,
+            blockReason:
+              `🛡️ Blocked by OpenClaw Harness Guard\n` +
+              `Rule: ${contentMatch.name}\n` +
+              `Description: ${contentMatch.description}\n` +
+              `Risk Level: ${contentMatch.risk}`,
+          };
+        }
+
+        // write/edit that isn't a protected path/content — allow
         return;
       }
 
@@ -303,6 +396,15 @@ export default function register(api) {
 
       const command = extractCommand(params);
       if (!command) return;
+
+      // Phase 1: rate limit exec
+      const execRate = checkRateLimit("exec");
+      if (execRate.blocked) {
+        return {
+          block: true,
+          blockReason: `🛡️ Blocked by OpenClaw Harness Guard\nReason: ${execRate.reason}`,
+        };
+      }
 
       // Always-enforce self-protection (hardcoded, API-independent)
       const alwaysBlock = checkAlwaysEnforceExec(command);

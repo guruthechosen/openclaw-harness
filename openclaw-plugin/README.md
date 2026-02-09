@@ -14,6 +14,10 @@ openclaw plugins install -l ./openclaw-plugin
 - **Standalone** — Works with built-in rules only. No daemon needed.
 - **Connected** — Full features when paired with the OpenClaw Harness daemon (port 8380).
 
+Phase 1 protections included in plugin:
+- Write/Edit content scanning (blocks dangerous script payloads before file write)
+- In-process rate limiting (exec + write/edit per-minute guardrails)
+
 The plugin auto-detects which mode to use.
 
 ## Configuration

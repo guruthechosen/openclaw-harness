@@ -58,6 +58,8 @@ openclaw-harness patch openclaw --check
 ```
 
 > **Note:** OpenClaw **2026.2.x+** ships with built-in `before_tool_call` hooks, so no patch is required. `--check` will report that hooks are built-in.
+>
+> **Version mismatch tip:** If `openclaw --version` shows an older version but `openclaw status` mentions a newer one, you likely have multiple installs (e.g., Homebrew + nvm). Ensure your PATH points to the same OpenClaw binary you upgraded.
 
 ### Docker
 

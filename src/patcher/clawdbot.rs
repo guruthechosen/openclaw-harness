@@ -274,6 +274,7 @@ const SUPPORTED_VERSIONS: &[&str] = &[
     "2026.2.2-3",
     "2026.2.3-1",
     "2026.2.6-3",
+    "2026.2.9",
 ];
 
 pub fn detect_clawdbot_version() -> Option<String> {

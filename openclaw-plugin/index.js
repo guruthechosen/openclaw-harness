@@ -84,6 +84,112 @@ const rateState = {
   writeEditCount: 0,
 };
 
+// Multi-step attack detection state
+const MULTISTEP_CONFIG = {
+  maxHistory: 20,
+  windowMs: 120_000,
+};
+const sessionHistory = new Map();
+
+const MULTISTEP_PATTERNS = [
+  {
+    name: "multistep_script_execute",
+    description: "Write script → chmod → execute chain",
+    steps: [
+      { tool: ["write", "Write"], contentCheck: /#!/bin\/(bash|sh)|rm |curl |wget / },
+      { tool: ["exec"], commandCheck: /chmod.*\+x/ },
+      { tool: ["exec"], commandCheck: /\.(\/|\/)\w+\.sh|^\.\/|^bash / },
+    ],
+    risk: "critical",
+  },
+  {
+    name: "multistep_download_execute",
+    description: "Download → chmod → execute chain",
+    steps: [
+      { tool: ["exec"], commandCheck: /(curl|wget).*(-o|>)/i },
+      { tool: ["exec"], commandCheck: /chmod.*\+x/i },
+      { tool: ["exec"], commandCheck: /\.(\/|\/)|bash|sh |zsh /i },
+    ],
+    risk: "critical",
+  },
+  {
+    name: "multistep_persistence",
+    description: "Write to persistence location (cron/startup)",
+    steps: [
+      { tool: ["write", "Write", "edit", "Edit"], pathCheck: /(crontab|cron\.d|launchd|\.bashrc|\.zshrc|\.profile|startup)/i },
+      { tool: ["exec"], commandCheck: /./ },
+    ],
+    risk: "warning",
+  },
+  {
+    name: "multistep_sudo_escalation",
+    description: "Multiple sudo attempts in short window",
+    steps: [
+      { tool: ["exec"], commandCheck: /sudo /i },
+      { tool: ["exec"], commandCheck: /sudo /i },
+      { tool: ["exec"], commandCheck: /sudo /i },
+    ],
+    risk: "warning",
+  },
+  {
+    name: "multistep_mass_access_then_exfil",
+    description: "Access many files then network exfiltration",
+    steps: [
+      { tool: ["read", "Read"], countMin: 10 },
+      { tool: ["exec"], commandCheck: /(curl|wget|scp|rsync).*(--data|> | -T )/i },
+    ],
+    risk: "critical",
+  },
+];
+
+function recordSessionAction(sessionKey, action) {
+  if (!sessionHistory.has(sessionKey)) {
+    sessionHistory.set(sessionKey, []);
+  }
+  const history = sessionHistory.get(sessionKey);
+  const now = Date.now();
+  history.push({ ...action, timestamp: now });
+  // Clean old entries
+  const cutoff = now - MULTISTEP_CONFIG.windowMs;
+  while (history.length > 0 && history[0].timestamp < cutoff) {
+    history.shift();
+  }
+  // Limit size
+  while (history.length > MULTISTEP_CONFIG.maxHistory) {
+    history.shift();
+  }
+}
+
+function checkMultistepAttack(sessionKey, currentAction) {
+  const history = sessionHistory.get(sessionKey) || [];
+  const recent = [...history, currentAction];
+  for (const pattern of MULTISTEP_PATTERNS) {
+    if (matchesPattern(recent, pattern)) {
+      return pattern;
+    }
+  }
+  return null;
+}
+
+function matchesPattern(actions, pattern) {
+  if (actions.length < pattern.steps.length) return false;
+  const toCheck = actions.slice(-pattern.steps.length);
+  for (let i = 0; i < pattern.steps.length; i++) {
+    const step = pattern.steps[i];
+    const action = toCheck[i];
+    if (!stepMatches(action, step)) return false;
+  }
+  return true;
+}
+
+function stepMatches(action, step) {
+  if (step.tool && !step.tool.includes(action.tool)) return false;
+  if (step.contentCheck && !step.contentCheck.test(action.content || "")) return false;
+  if (step.commandCheck && !step.commandCheck.test(action.command || "")) return false;
+  if (step.pathCheck && !step.pathCheck.test(action.path || "")) return false;
+  return true;
+}
+
 // Self-protection exec patterns that are ALWAYS enforced (even when API works)
 const ALWAYS_ENFORCE_EXEC = [
   { name: "self_protect_process", pattern: /(kill|pkill|killall)\s+.*(openclaw|moltbot|safebot|harness)/i },
@@ -295,7 +401,52 @@ export default function register(api) {
     async (event, _ctx) => {
       const toolName = event?.toolName ?? event?.name;
       const params = event?.params ?? event?.input;
+      const sessionKey = event?.sessionKey || "default";
+      
       // Minimal logging — only log when something is actually blocked
+
+      // ===== MULTI-STEP ATTACK DETECTION =====
+      // Build action record for pattern matching
+      const actionRecord = {
+        tool: toolName,
+        timestamp: Date.now(),
+        path: extractFilePath(params),
+        command: extractCommand(params),
+        content: extractWriteEditContent(params),
+      };
+      
+      // Check for multi-step attack patterns
+      const multistepMatch = checkMultistepAttack(sessionKey, actionRecord);
+      if (multistepMatch) {
+        api.logger?.warn?.(
+          `[harness-guard] 🚨 MULTI-STEP ATTACK detected: ${multistepMatch.name}`
+        );
+        
+        if (telegramToken && telegramChatId) {
+          const alertText =
+            `🚨 <b>MULTI-STEP ATTACK DETECTED</b>\n` +
+            `<b>Pattern:</b> ${multistepMatch.name}\n` +
+            `<b>Description:</b> ${multistepMatch.description}\n` +
+            `<b>Risk:</b> ${multistepMatch.risk}\n` +
+            `<b>Current Tool:</b> ${toolName}`;
+          void sendTelegramAlert(telegramToken, telegramChatId, alertText, api.logger);
+        }
+        
+        // Record the action even when blocking (for continued detection)
+        recordSessionAction(sessionKey, actionRecord);
+        
+        return {
+          block: true,
+          blockReason:
+            `🛡️ Blocked by OpenClaw Harness Guard\n` +
+            `Multi-step attack pattern detected: ${multistepMatch.name}\n` +
+            `Description: ${multistepMatch.description}\n` +
+            `Risk Level: ${multistepMatch.risk}`,
+        };
+      }
+      
+      // Record action for future pattern detection
+      recordSessionAction(sessionKey, actionRecord);
 
       // ===== WRITE/EDIT TOOL INTERCEPTION =====
       if (["write", "edit", "Write", "Edit"].includes(toolName)) {

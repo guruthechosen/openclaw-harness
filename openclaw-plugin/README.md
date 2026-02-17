@@ -17,6 +17,7 @@ openclaw plugins install -l ./openclaw-plugin
 Phase 1 protections included in plugin:
 - Write/Edit content scanning (blocks dangerous script payloads before file write)
 - In-process rate limiting (exec + write/edit per-minute guardrails)
+- **Multi-step attack detection** (detects attack chains: write → chmod → execute, mass access → exfiltration, etc.)
 
 The plugin auto-detects which mode to use.
 

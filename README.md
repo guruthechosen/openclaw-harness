@@ -229,8 +229,6 @@ flowchart LR
 
 ## 🔌 OpenClaw Plugin
 
-> **📦 The plugin has been split into its own repository: [openclaw-harness-plugin](https://github.com/sparkishy/openclaw-harness-plugin)**
-
 ```bash
 # Install the plugin (included in this repo)
 openclaw plugins install -l ./openclaw-plugin

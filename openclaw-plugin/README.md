@@ -1,6 +1,6 @@
 # 🛡️ Harness Guard Plugin
 
-OpenClaw plugin for [OpenClaw Harness](https://github.com/sparkishy/openclaw-harness). Intercepts tool calls and blocks dangerous commands before execution.
+OpenClaw plugin for [OpenClaw Harness](https://github.com/guruthechosen/openclaw-harness). Intercepts tool calls and blocks dangerous commands before execution.
 
 ## Install
 

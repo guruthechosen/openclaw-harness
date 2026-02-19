@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sparkishy/openclaw-harness-plugin"
+    "url": "https://github.com/guruthechosen/openclaw-harness"
   },
   "keywords": [
     "openclaw",
@@ -24,7 +24,7 @@
   "license": "MIT",
   "author": "sparkishy",
   "bugs": {
-    "url": "https://github.com/sparkishy/openclaw-harness-plugin/issues"
+    "url": "https://github.com/guruthechosen/openclaw-harness/issues"
   },
-  "homepage": "https://github.com/sparkishy/openclaw-harness-plugin#readme"
+  "homepage": "https://github.com/guruthechosen/openclaw-harness/tree/main/openclaw-plugin#readme"
 }

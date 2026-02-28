@@ -8,7 +8,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from 'recharts'
-import { getStats, getProxyStatus, updateProxyConfig, getEvents, type Stats, type ProxyStatus } from '../lib/api'
+import { getStats, getProxyStatus, updateProxyConfig, type Stats, type ProxyStatus } from '../lib/api'
 import type { WsEvent } from '../hooks/useWebSocket'
 
 const iconBg: Record<string, string> = {
@@ -108,12 +108,12 @@ const DEMO_TREND = generateDemoTrend()
 
 const PIE_COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e']
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ color?: string; name?: string; value?: number }>; label?: string }) => {
   if (!active || !payload?.length) return null
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 shadow-xl">
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      {payload.map((p: any, i: number) => (
+      {payload.map((p, i: number) => (
         <p key={i} className="text-xs" style={{ color: p.color }}>
           {p.name}: <span className="font-semibold">{p.value}</span>
         </p>

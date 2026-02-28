@@ -72,8 +72,8 @@ export default function Rules() {
       }
       setModal({ open: false, editing: null })
       load()
-    } catch (e: any) {
-      alert(e.message)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to save rule')
     } finally {
       setSaving(false)
     }
@@ -84,8 +84,8 @@ export default function Rules() {
     try {
       await deleteRule(name)
       load()
-    } catch (e: any) {
-      alert(e.message)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Failed to delete rule')
     }
   }
 
@@ -93,7 +93,9 @@ export default function Rules() {
     try {
       await updateRule(r.name, { enabled: !r.enabled })
       load()
-    } catch {}
+    } catch (e) {
+      console.error('Failed to toggle rule', e)
+    }
   }
 
   const handleTest = async () => {

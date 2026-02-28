@@ -33,7 +33,9 @@ export default function SettingsPage() {
       await updateAlertConfig(alerts)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
-    } catch {}
+    } catch (e) {
+      console.error('Failed to save alerts', e)
+    }
     setSaving(false)
   }
 

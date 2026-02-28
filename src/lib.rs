@@ -3,6 +3,8 @@
 //! Core components for AI agent monitoring.
 
 pub mod analyzer;
+pub mod brain;
+pub mod campaign;
 pub mod collectors;
 pub mod db;
 pub mod enforcer;

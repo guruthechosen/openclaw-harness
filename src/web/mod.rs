@@ -142,8 +142,20 @@ pub async fn start_server(
         .route("/api/proxy/config", put(routes::update_proxy_config))
         .route("/api/providers", get(routes::get_providers))
         .route(
+            "/api/campaigns/adaptive/generate",
+            post(routes::generate_adaptive_campaign),
+        )
+        .route("/api/brain/ontology/build", post(routes::build_ontology_v1))
+        .route("/api/brain/ontology/v2/build", post(routes::build_ontology_v2))
+        .route("/api/brain/query", post(routes::query_brain_v2))
+        .route(
             "/api/alerts/config",
             get(routes::get_alert_config).put(routes::update_alert_config),
+        )
+        .route("/api/reports/weekly", get(routes::get_weekly_report))
+        .route(
+            "/api/reports/weekly/generate",
+            post(routes::generate_weekly_report),
         )
         // WebSocket
         .route("/ws/events", get(ws::ws_handler))

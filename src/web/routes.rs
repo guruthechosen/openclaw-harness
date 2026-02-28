@@ -1,6 +1,11 @@
 //! REST API routes
 
 use super::AppState;
+use crate::brain::{
+    build_ontology_from_db, build_ontology_v2_from_db, persist_ontology, persist_ontology_v2,
+    BrainInsights, OntologyBuildSummary,
+};
+use crate::campaign::{CampaignConstraints, CampaignEngine, LlmAiPlanner, MissionPlan};
 use crate::rules::{Rule, RuleAction};
 use crate::RiskLevel;
 use axum::{
@@ -9,6 +14,9 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path as StdPath;
 use std::sync::Arc;
 
 // ============================================================================
@@ -559,4 +567,547 @@ fn save_alert_config_to_file(config: &AlertConfigResponse) -> anyhow::Result<()>
     let content = serde_json::to_string_pretty(config)?;
     std::fs::write("config/alerts.json", content)?;
     Ok(())
+}
+
+// ============================================================================
+// Adaptive Campaign (AI-driven dynamic mission)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct AdaptiveCampaignRequest {
+    pub user_id: String,
+    pub max_points_per_mission: u32,
+    pub min_completion_probability: Option<f32>,
+    pub max_expected_hours: Option<f32>,
+}
+
+#[derive(Serialize)]
+pub struct AdaptiveCampaignResponse {
+    pub ok: bool,
+    pub mission: MissionPlan,
+}
+
+pub async fn generate_adaptive_campaign(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<AdaptiveCampaignRequest>,
+) -> Result<Json<AdaptiveCampaignResponse>, StatusCode> {
+    let constraints = CampaignConstraints {
+        max_points_per_mission: body.max_points_per_mission,
+        min_completion_probability: body.min_completion_probability.unwrap_or(0.35),
+        max_expected_hours: body.max_expected_hours.unwrap_or(3.0),
+    };
+
+    let conn = rusqlite::Connection::open(&state.db_path)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let planner = LlmAiPlanner::from_env().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let engine = CampaignEngine::new(planner);
+    let mission = engine
+        .generate_mission(&conn, &body.user_id, &constraints)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    Ok(Json(AdaptiveCampaignResponse { ok: true, mission }))
+}
+
+#[derive(Serialize)]
+pub struct BuildOntologyResponse {
+    pub ok: bool,
+    pub summary: OntologyBuildSummary,
+}
+
+#[derive(Serialize)]
+pub struct BuildOntologyV2Response {
+    pub ok: bool,
+    pub summary: OntologyBuildSummary,
+    pub insights: BrainInsights,
+}
+
+pub async fn build_ontology_v1(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<BuildOntologyResponse>, StatusCode> {
+    let conn = rusqlite::Connection::open(&state.db_path)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (nodes, edges) = build_ontology_from_db(&conn)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let summary = persist_ontology(StdPath::new("data"), &nodes, &edges)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(BuildOntologyResponse { ok: true, summary }))
+}
+
+pub async fn build_ontology_v2(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<BuildOntologyV2Response>, StatusCode> {
+    let conn = rusqlite::Connection::open(&state.db_path)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (nodes, edges, insights) = build_ontology_v2_from_db(&conn)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let summary = persist_ontology_v2(StdPath::new("data"), &nodes, &edges, &insights)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(BuildOntologyV2Response {
+        ok: true,
+        summary,
+        insights,
+    }))
+}
+
+#[derive(Deserialize)]
+pub struct BrainQueryRequest {
+    pub query_type: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct BrainQueryResponse {
+    pub ok: bool,
+    pub query_type: String,
+    pub results: Vec<serde_json::Value>,
+    pub insights: Option<serde_json::Value>,
+}
+
+pub async fn query_brain_v2(
+    Json(body): Json<BrainQueryRequest>,
+) -> Result<Json<BrainQueryResponse>, StatusCode> {
+    let base = StdPath::new("data/ontology/v2");
+    let nodes_path = base.join("nodes.jsonl");
+    let insights_path = base.join("insights.json");
+
+    let nodes_txt = fs::read_to_string(nodes_path).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut rows: Vec<serde_json::Value> = vec![];
+    for line in nodes_txt.lines() {
+        if line.trim().is_empty() { continue; }
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+            rows.push(v);
+        }
+    }
+
+    let limit = body.limit.unwrap_or(10);
+    let results = match body.query_type.as_str() {
+        "top_bottlenecks" => rows.into_iter().filter(|v| v["kind"] == "Bottleneck").take(limit).collect(),
+        "top_patterns" => rows.into_iter().filter(|v| v["kind"] == "TaskPattern").take(limit).collect(),
+        "skills" => rows.into_iter().filter(|v| v["kind"] == "Skill").take(limit).collect(),
+        "decisions" => rows.into_iter().filter(|v| v["kind"] == "Decision").take(limit).collect(),
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let insights = fs::read_to_string(insights_path)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+
+    Ok(Json(BrainQueryResponse {
+        ok: true,
+        query_type: body.query_type,
+        results,
+        insights,
+    }))
+}
+
+// ============================================================================
+// Brain Reports (Weekly)
+// ============================================================================
+
+#[derive(Deserialize)]
+pub struct WeeklyReportQuery {
+    pub week: Option<String>, // YYYY-Www
+}
+
+#[derive(Deserialize)]
+pub struct GenerateWeeklyReportRequest {
+    pub workspace_id: Option<String>,
+    pub week: Option<String>,
+    pub timezone: Option<String>,
+    pub force_regenerate: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct WeeklyProjectActivity {
+    pub project_id: String,
+    pub events: u64,
+}
+
+#[derive(Serialize)]
+pub struct WeeklyToolCount {
+    pub tool: String,
+    pub count: u64,
+}
+
+#[derive(Serialize)]
+pub struct WeeklyPattern {
+    pub name: String,
+    pub count: u64,
+    pub suggestion: String,
+}
+
+#[derive(Serialize)]
+pub struct WeeklyRisk {
+    pub critical: u64,
+    pub warning: u64,
+    pub info: u64,
+}
+
+#[derive(Serialize)]
+pub struct WeeklyActivity {
+    pub total_events: u64,
+    pub projects: Vec<WeeklyProjectActivity>,
+    pub top_tools: Vec<WeeklyToolCount>,
+}
+
+#[derive(Serialize)]
+pub struct WeeklyReportResponse {
+    pub report_id: String,
+    pub workspace_id: String,
+    pub week_start: String,
+    pub week_end: String,
+    pub headline: String,
+    pub activity: WeeklyActivity,
+    pub risk: WeeklyRisk,
+    pub patterns: Vec<WeeklyPattern>,
+    pub next_actions: Vec<String>,
+    pub markdown: String,
+    pub created_at: String,
+}
+
+fn week_range_kst(week: Option<String>) -> anyhow::Result<(String, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> {
+    use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, TimeZone, Weekday};
+
+    let now_kst = chrono::Utc::now() + Duration::hours(9);
+    let (year, iso_week) = if let Some(w) = week {
+        let parts: Vec<&str> = w.split('-').collect();
+        if parts.len() != 2 || !parts[1].starts_with('W') {
+            anyhow::bail!("week must be YYYY-Www");
+        }
+        let year = parts[0].parse::<i32>()?;
+        let iso_week = parts[1][1..].parse::<u32>()?;
+        (year, iso_week)
+    } else {
+        (now_kst.year(), now_kst.iso_week().week())
+    };
+
+    let monday = NaiveDate::from_isoywd_opt(year, iso_week, Weekday::Mon)
+        .ok_or_else(|| anyhow::anyhow!("invalid ISO week"))?;
+    let sunday = monday + Duration::days(6);
+
+    let start_kst = NaiveDateTime::new(monday, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+    let end_kst = NaiveDateTime::new(sunday, chrono::NaiveTime::from_hms_opt(23, 59, 59).unwrap());
+
+    let start_utc = chrono::FixedOffset::east_opt(9 * 3600)
+        .unwrap()
+        .from_local_datetime(&start_kst)
+        .single()
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let end_utc = chrono::FixedOffset::east_opt(9 * 3600)
+        .unwrap()
+        .from_local_datetime(&end_kst)
+        .single()
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+
+    Ok((format!("{}-W{:02}", year, iso_week), start_utc, end_utc))
+}
+
+fn build_markdown(report: &WeeklyReportResponse) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("# Weekly Report {}\n\n", report.report_id));
+    out.push_str(&format!("- Headline: {}\n", report.headline));
+    out.push_str(&format!("- Range (UTC): {} ~ {}\n\n", report.week_start, report.week_end));
+    out.push_str("## Activity\n");
+    out.push_str(&format!("- Total events: {}\n", report.activity.total_events));
+    for p in &report.activity.projects {
+        out.push_str(&format!("- Project `{}`: {} events\n", p.project_id, p.events));
+    }
+    out.push_str("\n## Risk\n");
+    out.push_str(&format!("- Critical: {}\n- Warning: {}\n- Info: {}\n", report.risk.critical, report.risk.warning, report.risk.info));
+    out.push_str("\n## Patterns\n");
+    for p in &report.patterns {
+        out.push_str(&format!("- {} ({}): {}\n", p.name, p.count, p.suggestion));
+    }
+    out.push_str("\n## Next Actions\n");
+    for a in &report.next_actions {
+        out.push_str(&format!("- {}\n", a));
+    }
+    out
+}
+
+fn persist_weekly_outputs(base_dir: &StdPath, report: &WeeklyReportResponse) -> anyhow::Result<()> {
+    let weekly_dir = base_dir.join("reports").join("weekly");
+    fs::create_dir_all(&weekly_dir)?;
+
+    let md_path = weekly_dir.join(format!("{}.md", report.report_id));
+    let json_path = weekly_dir.join(format!("{}.json", report.report_id));
+
+    fs::write(md_path, &report.markdown)?;
+    fs::write(json_path, serde_json::to_string_pretty(report)?)?;
+
+    Ok(())
+}
+
+fn materialize_ontology_minimal(base_dir: &StdPath, report: &WeeklyReportResponse) -> anyhow::Result<()> {
+    let ontology_dir = base_dir.join("ontology");
+    fs::create_dir_all(&ontology_dir)?;
+
+    let nodes_path = ontology_dir.join("nodes.jsonl");
+    let edges_path = ontology_dir.join("edges.jsonl");
+
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+
+    nodes.push(serde_json::json!({
+        "id": format!("workspace:{}", report.workspace_id),
+        "kind": "Workspace",
+        "title": report.workspace_id,
+        "ts": report.created_at,
+    }));
+
+    nodes.push(serde_json::json!({
+        "id": format!("report:{}", report.report_id),
+        "kind": "WeeklyReport",
+        "title": report.headline,
+        "week_start": report.week_start,
+        "week_end": report.week_end,
+        "ts": report.created_at,
+    }));
+
+    edges.push(serde_json::json!({
+        "from": format!("workspace:{}", report.workspace_id),
+        "to": format!("report:{}", report.report_id),
+        "rel": "has_report",
+        "ts": report.created_at,
+    }));
+
+    for p in &report.activity.projects {
+        let project_node = serde_json::json!({
+            "id": format!("project:{}", p.project_id),
+            "kind": "Project",
+            "title": p.project_id,
+            "events": p.events,
+            "ts": report.created_at,
+        });
+        nodes.push(project_node);
+
+        edges.push(serde_json::json!({
+            "from": format!("report:{}", report.report_id),
+            "to": format!("project:{}", p.project_id),
+            "rel": "contains_project_activity",
+            "weight": p.events,
+            "ts": report.created_at,
+        }));
+    }
+
+    let nodes_jsonl = nodes
+        .into_iter()
+        .map(|n| serde_json::to_string(&n))
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n")
+        + "\n";
+    let edges_jsonl = edges
+        .into_iter()
+        .map(|e| serde_json::to_string(&e))
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n")
+        + "\n";
+
+    fs::write(nodes_path, nodes_jsonl)?;
+    fs::write(edges_path, edges_jsonl)?;
+
+    Ok(())
+}
+
+fn compute_weekly_report(db_path: &str, week: Option<String>, workspace_id: Option<String>) -> anyhow::Result<WeeklyReportResponse> {
+    use rusqlite::Connection;
+
+    let (report_id, start_utc, end_utc) = week_range_kst(week)?;
+    let workspace = workspace_id.unwrap_or_else(|| "default".to_string());
+    let conn = Connection::open(db_path)?;
+
+    let total_events: u64 = conn.query_row(
+        "SELECT COUNT(*) FROM actions WHERE timestamp BETWEEN ?1 AND ?2",
+        [start_utc.to_rfc3339(), end_utc.to_rfc3339()],
+        |r| r.get::<_, i64>(0).map(|v| v as u64),
+    )?;
+
+    let mut projects_map: HashMap<String, u64> = HashMap::new();
+    let mut stmt = conn.prepare(
+        "SELECT COALESCE(target, 'unknown'), COUNT(*) FROM actions WHERE timestamp BETWEEN ?1 AND ?2 GROUP BY COALESCE(target, 'unknown') ORDER BY COUNT(*) DESC LIMIT 5",
+    )?;
+    let rows = stmt.query_map([start_utc.to_rfc3339(), end_utc.to_rfc3339()], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64))
+    })?;
+    for row in rows {
+        let (target, count) = row?;
+        let project = if target.starts_with('/') {
+            target.split('/').take(5).collect::<Vec<_>>().join("/")
+        } else {
+            target
+        };
+        *projects_map.entry(project).or_insert(0) += count;
+    }
+    let projects: Vec<WeeklyProjectActivity> = projects_map
+        .into_iter()
+        .map(|(project_id, events)| WeeklyProjectActivity { project_id, events })
+        .collect();
+
+    let mut top_tools_stmt = conn.prepare(
+        "SELECT action_type, COUNT(*) FROM actions WHERE timestamp BETWEEN ?1 AND ?2 GROUP BY action_type ORDER BY COUNT(*) DESC LIMIT 5",
+    )?;
+    let top_tools = top_tools_stmt
+        .query_map([start_utc.to_rfc3339(), end_utc.to_rfc3339()], |row| {
+            Ok(WeeklyToolCount {
+                tool: row.get::<_, String>(0)?,
+                count: row.get::<_, i64>(1)? as u64,
+            })
+        })?
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>();
+
+    let critical: u64 = conn.query_row(
+        "SELECT COUNT(*) FROM analysis_results WHERE timestamp BETWEEN ?1 AND ?2 AND risk_level='Critical'",
+        [start_utc.to_rfc3339(), end_utc.to_rfc3339()],
+        |r| r.get::<_, i64>(0).map(|v| v as u64),
+    )?;
+    let warning: u64 = conn.query_row(
+        "SELECT COUNT(*) FROM analysis_results WHERE timestamp BETWEEN ?1 AND ?2 AND risk_level='Warning'",
+        [start_utc.to_rfc3339(), end_utc.to_rfc3339()],
+        |r| r.get::<_, i64>(0).map(|v| v as u64),
+    )?;
+    let info: u64 = conn.query_row(
+        "SELECT COUNT(*) FROM analysis_results WHERE timestamp BETWEEN ?1 AND ?2 AND risk_level='Info'",
+        [start_utc.to_rfc3339(), end_utc.to_rfc3339()],
+        |r| r.get::<_, i64>(0).map(|v| v as u64),
+    )?;
+
+    let mut patterns = Vec::new();
+    let mut patt_stmt = conn.prepare(
+        "SELECT content, COUNT(*) as c FROM actions WHERE timestamp BETWEEN ?1 AND ?2 GROUP BY content HAVING c >= 3 ORDER BY c DESC LIMIT 3",
+    )?;
+    let patt_rows = patt_stmt.query_map([start_utc.to_rfc3339(), end_utc.to_rfc3339()], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as u64))
+    })?;
+    for row in patt_rows {
+        let (name, count) = row?;
+        patterns.push(WeeklyPattern {
+            name: if name.len() > 70 { format!("{}…", &name[..70]) } else { name },
+            count,
+            suggestion: "반복 작업은 스크립트/자동화 후보로 검토".to_string(),
+        });
+    }
+
+    let next_actions = vec![
+        "상위 반복 작업 1개 자동화 스크립트로 전환".to_string(),
+        "Warning 규칙 false-positive 1건 정밀 조정".to_string(),
+        "주요 프로젝트별 decision note 자동 생성 활성화".to_string(),
+    ];
+
+    let headline = if critical > 0 {
+        "Critical 이벤트가 감지되어 정책 강화가 필요함".to_string()
+    } else if warning > 0 {
+        "Warning 이벤트 중심으로 정책 튜닝이 필요한 주간".to_string()
+    } else {
+        "안정적인 주간 활동 (risk low)".to_string()
+    };
+
+    let mut report = WeeklyReportResponse {
+        report_id,
+        workspace_id: workspace,
+        week_start: start_utc.to_rfc3339(),
+        week_end: end_utc.to_rfc3339(),
+        headline,
+        activity: WeeklyActivity {
+            total_events,
+            projects,
+            top_tools,
+        },
+        risk: WeeklyRisk { critical, warning, info },
+        patterns,
+        next_actions,
+        markdown: String::new(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    report.markdown = build_markdown(&report);
+    Ok(report)
+}
+
+pub async fn get_weekly_report(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<WeeklyReportQuery>,
+) -> Result<Json<WeeklyReportResponse>, StatusCode> {
+    compute_weekly_report(&state.db_path, query.week, None)
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+pub async fn generate_weekly_report(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<GenerateWeeklyReportRequest>,
+) -> Result<Json<WeeklyReportResponse>, StatusCode> {
+    let _ = body.timezone;
+    let _ = body.force_regenerate;
+    let report = compute_weekly_report(&state.db_path, body.week, body.workspace_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let base_dir = StdPath::new("data");
+    persist_weekly_outputs(base_dir, &report).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    materialize_ontology_minimal(base_dir, &report)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(report))
+}
+
+#[cfg(test)]
+mod brain_report_tests {
+    use super::*;
+
+    #[test]
+    fn test_week_range_kst_parses_iso_week() {
+        let (report_id, start, end) = week_range_kst(Some("2026-W09".to_string())).unwrap();
+        assert_eq!(report_id, "2026-W09");
+        assert!(end > start);
+    }
+
+    #[test]
+    fn test_persist_and_materialize_outputs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let report = WeeklyReportResponse {
+            report_id: "2026-W09".to_string(),
+            workspace_id: "default".to_string(),
+            week_start: "2026-02-23T00:00:00Z".to_string(),
+            week_end: "2026-03-01T23:59:59Z".to_string(),
+            headline: "test headline".to_string(),
+            activity: WeeklyActivity {
+                total_events: 10,
+                projects: vec![WeeklyProjectActivity {
+                    project_id: "proj:safebot".to_string(),
+                    events: 7,
+                }],
+                top_tools: vec![WeeklyToolCount {
+                    tool: "Exec".to_string(),
+                    count: 5,
+                }],
+            },
+            risk: WeeklyRisk {
+                critical: 1,
+                warning: 2,
+                info: 3,
+            },
+            patterns: vec![],
+            next_actions: vec!["do x".to_string()],
+            markdown: "# test".to_string(),
+            created_at: "2026-02-27T00:00:00Z".to_string(),
+        };
+
+        persist_weekly_outputs(tmp.path(), &report).unwrap();
+        materialize_ontology_minimal(tmp.path(), &report).unwrap();
+
+        assert!(tmp
+            .path()
+            .join("reports/weekly/2026-W09.md")
+            .exists());
+        assert!(tmp
+            .path()
+            .join("reports/weekly/2026-W09.json")
+            .exists());
+        assert!(tmp.path().join("ontology/nodes.jsonl").exists());
+        assert!(tmp.path().join("ontology/edges.jsonl").exists());
+    }
 }

@@ -47,7 +47,28 @@ openclaw-harness start --foreground
 
 The web dashboard is available at **http://localhost:8380**.
 
-### Patch OpenClaw (recommended)
+### OpenClaw 2026.2.26+ Compatibility Checklist (recommended)
+
+Use this checklist after any OpenClaw upgrade:
+
+```bash
+# 1) Confirm versions
+openclaw --version
+openclaw status
+
+# 2) Build harness
+cargo build --release
+
+# 3) Verify plugin path is installed
+openclaw plugins install -l ./openclaw-plugin
+
+# 4) Confirm plugin is not disabled
+# (in `openclaw status`, avoid: "plugins.entries.harness-guard: plugin disabled")
+```
+
+If `openclaw-harness patch openclaw --check` fails with `Exec tool file not found`, treat it as a **legacy patcher limitation**, not a harness runtime failure on 2026.2.x.
+
+### Patch OpenClaw (legacy only)
 
 ```bash
 # Inject before_tool_call hook into OpenClaw's exec tool (legacy builds)
@@ -59,9 +80,11 @@ openclaw-harness patch openclaw --check
 
 > **Note:** OpenClaw **2026.2.x+** ships with built-in `before_tool_call` hooks, so no patch is required. `--check` will report that hooks are built-in.
 >
-> **Tested:** Verified with OpenClaw **2026.2.15** (latest stable at time of writing; bundled loader includes built-in `wrapToolWithBeforeToolCallHook`).
+> **Tested:** Verified with OpenClaw **2026.2.26**.
 >
-> **Compatibility status:** `@openclaw/harness-guard` plugin (`before_tool_call`) loads correctly on 2026.2.15. No code changes required for this release.
+> **Compatibility status (2026.2.26):** Plugin path and built-in hooks are compatible. Use the native plugin / built-in hook flow; do **not** rely on legacy patching.
+>
+> **Important:** On newer OpenClaw builds, `openclaw-harness patch openclaw --check` may fail with `Exec tool file not found` because legacy file paths changed. This is expected when built-in hooks are present.
 >
 > **Version mismatch tip:** If `openclaw --version` shows an older version but `openclaw status` mentions a newer one, you likely have multiple installs (e.g., Homebrew + nvm). Ensure your PATH points to the same OpenClaw binary you upgraded.
 
@@ -235,6 +258,19 @@ openclaw plugins install -l ./openclaw-plugin
 ```
 
 The plugin works in **Standalone** mode (built-in rules only, no daemon needed) or **Connected** mode (full features when daemon is running on port 8380). See [`openclaw-plugin/README.md`](openclaw-plugin/README.md) for details.
+
+
+### Plugin health checks
+
+After install/update, run:
+
+```bash
+openclaw status
+```
+
+Healthy state should show no warning about `plugins.entries.harness-guard` being disabled.
+
+If you see that warning, enable the plugin entry in OpenClaw config and re-check `openclaw status`.
 
 ---
 

@@ -355,7 +355,7 @@ pub fn build_ontology_v2_from_db(
         "SELECT a.agent, LOWER(a.action_type), COUNT(*)
          FROM analysis_results r
          JOIN actions a ON a.id = r.action_id
-         WHERE r.risk_level IN (Warning,Critical)
+         WHERE r.risk_level IN ('Warning','Critical')
          GROUP BY a.agent, LOWER(a.action_type)",
     )?;
     let risk_rows = stmt_risk.query_map([], |r| {

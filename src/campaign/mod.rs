@@ -94,10 +94,13 @@ impl LlmAiPlanner {
             .context("missing SAFEBOT_LLM_API_KEY for LLM planner")?;
         let base_url = std::env::var("SAFEBOT_LLM_BASE_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
-        let model = std::env::var("SAFEBOT_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
+        let model =
+            std::env::var("SAFEBOT_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
 
         Ok(Self {
-            client: Client::builder().timeout(std::time::Duration::from_secs(30)).build()?,
+            client: Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()?,
             api_key,
             base_url,
             model,
@@ -113,7 +116,8 @@ impl LlmAiPlanner {
     ) -> String {
         let history_json = serde_json::to_string(history).unwrap_or_else(|_| "[]".to_string());
         let stats_json = serde_json::to_string(stats).unwrap_or_else(|_| "{}".to_string());
-        let constraints_json = serde_json::to_string(constraints).unwrap_or_else(|_| "{}".to_string());
+        let constraints_json =
+            serde_json::to_string(constraints).unwrap_or_else(|_| "{}".to_string());
 
         format!(
             "You are an adaptive campaign planner. Analyze user behavior deeply and produce ONLY JSON.\n\
@@ -188,10 +192,20 @@ impl MissionAiPlanner for LlmAiPlanner {
         let mut last_err = String::new();
 
         for attempt in 1..=self.max_attempts {
-            let raw = self.call_chat(&prompt).with_context(|| format!("LLM call failed at attempt {attempt}"))?;
+            let raw = self
+                .call_chat(&prompt)
+                .with_context(|| format!("LLM call failed at attempt {attempt}"))?;
             match validate_mission_draft_json(&raw, constraints) {
                 Ok(draft) => {
-                    write_audit_log(conn, &stats.user_id, attempt as i64, "ok", &prompt, &raw, None)?;
+                    write_audit_log(
+                        conn,
+                        &stats.user_id,
+                        attempt as i64,
+                        "ok",
+                        &prompt,
+                        &raw,
+                        None,
+                    )?;
                     return Ok(draft);
                 }
                 Err(e) => {
@@ -241,7 +255,8 @@ impl<P: MissionAiPlanner> CampaignEngine<P> {
             anyhow::bail!("mission rejected: expected hours exceeds user capacity")
         }
 
-        let final_points = clamp_points(draft.recommended_points, constraints.max_points_per_mission);
+        let final_points =
+            clamp_points(draft.recommended_points, constraints.max_points_per_mission);
         let clamped = final_points != draft.recommended_points;
 
         Ok(MissionPlan {
@@ -301,8 +316,8 @@ fn validate_mission_draft_json(
     raw: &str,
     constraints: &CampaignConstraints,
 ) -> anyhow::Result<MissionDraft> {
-    let mut draft: MissionDraft = serde_json::from_str(raw)
-        .with_context(|| "mission JSON parse failed")?;
+    let mut draft: MissionDraft =
+        serde_json::from_str(raw).with_context(|| "mission JSON parse failed")?;
 
     if !(0.0..=1.0).contains(&draft.difficulty_score) {
         anyhow::bail!("difficulty_score out of range")
@@ -362,8 +377,11 @@ fn compute_stats(user_id: &str, history: &[BehaviourRecord]) -> UserBehaviourSta
     let total_events = history.len() as u64;
     let success_count = history.iter().filter(|h| h.success).count() as u64;
     let success_rate = success_count as f32 / total_events as f32;
-    let avg_duration_minutes =
-        history.iter().map(|h| h.duration_minutes as f32).sum::<f32>() / total_events as f32;
+    let avg_duration_minutes = history
+        .iter()
+        .map(|h| h.duration_minutes as f32)
+        .sum::<f32>()
+        / total_events as f32;
 
     let mut types = std::collections::HashSet::new();
     for h in history {

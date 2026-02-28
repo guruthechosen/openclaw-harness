@@ -146,7 +146,10 @@ pub async fn start_server(
             post(routes::generate_adaptive_campaign),
         )
         .route("/api/brain/ontology/build", post(routes::build_ontology_v1))
-        .route("/api/brain/ontology/v2/build", post(routes::build_ontology_v2))
+        .route(
+            "/api/brain/ontology/v2/build",
+            post(routes::build_ontology_v2),
+        )
         .route("/api/brain/query", post(routes::query_brain_v2))
         .route(
             "/api/alerts/config",

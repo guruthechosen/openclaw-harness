@@ -15,9 +15,21 @@ impl MissionAiPlanner for MockPlanner {
         _constraints: &CampaignConstraints,
     ) -> anyhow::Result<MissionDraft> {
         let required_count = if stats.success_rate >= 0.7 { 6 } else { 3 };
-        let diff = if stats.success_rate >= 0.7 { 0.72 } else { 0.45 };
-        let expected_prob = if stats.success_rate >= 0.7 { 0.58 } else { 0.74 };
-        let expected_hours = if stats.avg_duration_minutes <= 20.0 { 1.5 } else { 2.5 };
+        let diff = if stats.success_rate >= 0.7 {
+            0.72
+        } else {
+            0.45
+        };
+        let expected_prob = if stats.success_rate >= 0.7 {
+            0.58
+        } else {
+            0.74
+        };
+        let expected_hours = if stats.avg_duration_minutes <= 20.0 {
+            1.5
+        } else {
+            2.5
+        };
 
         Ok(MissionDraft {
             title: format!("Adaptive mission for {}", stats.user_id),

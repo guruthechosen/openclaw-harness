@@ -627,8 +627,8 @@ pub async fn build_ontology_v1(
 ) -> Result<Json<BuildOntologyResponse>, StatusCode> {
     let conn = rusqlite::Connection::open(&state.db_path)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let (nodes, edges) = build_ontology_from_db(&conn)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (nodes, edges) =
+        build_ontology_from_db(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let summary = persist_ontology(StdPath::new("data"), &nodes, &edges)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -640,8 +640,8 @@ pub async fn build_ontology_v2(
 ) -> Result<Json<BuildOntologyV2Response>, StatusCode> {
     let conn = rusqlite::Connection::open(&state.db_path)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let (nodes, edges, insights) = build_ontology_v2_from_db(&conn)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (nodes, edges, insights) =
+        build_ontology_v2_from_db(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let summary = persist_ontology_v2(StdPath::new("data"), &nodes, &edges, &insights)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -676,7 +676,9 @@ pub async fn query_brain_v2(
     let nodes_txt = fs::read_to_string(nodes_path).map_err(|_| StatusCode::BAD_REQUEST)?;
     let mut rows: Vec<serde_json::Value> = vec![];
     for line in nodes_txt.lines() {
-        if line.trim().is_empty() { continue; }
+        if line.trim().is_empty() {
+            continue;
+        }
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
             rows.push(v);
         }
@@ -684,10 +686,26 @@ pub async fn query_brain_v2(
 
     let limit = body.limit.unwrap_or(10);
     let results = match body.query_type.as_str() {
-        "top_bottlenecks" => rows.into_iter().filter(|v| v["kind"] == "Bottleneck").take(limit).collect(),
-        "top_patterns" => rows.into_iter().filter(|v| v["kind"] == "TaskPattern").take(limit).collect(),
-        "skills" => rows.into_iter().filter(|v| v["kind"] == "Skill").take(limit).collect(),
-        "decisions" => rows.into_iter().filter(|v| v["kind"] == "Decision").take(limit).collect(),
+        "top_bottlenecks" => rows
+            .into_iter()
+            .filter(|v| v["kind"] == "Bottleneck")
+            .take(limit)
+            .collect(),
+        "top_patterns" => rows
+            .into_iter()
+            .filter(|v| v["kind"] == "TaskPattern")
+            .take(limit)
+            .collect(),
+        "skills" => rows
+            .into_iter()
+            .filter(|v| v["kind"] == "Skill")
+            .take(limit)
+            .collect(),
+        "decisions" => rows
+            .into_iter()
+            .filter(|v| v["kind"] == "Decision")
+            .take(limit)
+            .collect(),
         _ => return Err(StatusCode::BAD_REQUEST),
     };
 
@@ -768,7 +786,13 @@ pub struct WeeklyReportResponse {
     pub created_at: String,
 }
 
-fn week_range_kst(week: Option<String>) -> anyhow::Result<(String, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> {
+fn week_range_kst(
+    week: Option<String>,
+) -> anyhow::Result<(
+    String,
+    chrono::DateTime<chrono::Utc>,
+    chrono::DateTime<chrono::Utc>,
+)> {
     use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, TimeZone, Weekday};
 
     let now_kst = chrono::Utc::now() + Duration::hours(9);
@@ -811,14 +835,26 @@ fn build_markdown(report: &WeeklyReportResponse) -> String {
     let mut out = String::new();
     out.push_str(&format!("# Weekly Report {}\n\n", report.report_id));
     out.push_str(&format!("- Headline: {}\n", report.headline));
-    out.push_str(&format!("- Range (UTC): {} ~ {}\n\n", report.week_start, report.week_end));
+    out.push_str(&format!(
+        "- Range (UTC): {} ~ {}\n\n",
+        report.week_start, report.week_end
+    ));
     out.push_str("## Activity\n");
-    out.push_str(&format!("- Total events: {}\n", report.activity.total_events));
+    out.push_str(&format!(
+        "- Total events: {}\n",
+        report.activity.total_events
+    ));
     for p in &report.activity.projects {
-        out.push_str(&format!("- Project `{}`: {} events\n", p.project_id, p.events));
+        out.push_str(&format!(
+            "- Project `{}`: {} events\n",
+            p.project_id, p.events
+        ));
     }
     out.push_str("\n## Risk\n");
-    out.push_str(&format!("- Critical: {}\n- Warning: {}\n- Info: {}\n", report.risk.critical, report.risk.warning, report.risk.info));
+    out.push_str(&format!(
+        "- Critical: {}\n- Warning: {}\n- Info: {}\n",
+        report.risk.critical, report.risk.warning, report.risk.info
+    ));
     out.push_str("\n## Patterns\n");
     for p in &report.patterns {
         out.push_str(&format!("- {} ({}): {}\n", p.name, p.count, p.suggestion));
@@ -843,7 +879,10 @@ fn persist_weekly_outputs(base_dir: &StdPath, report: &WeeklyReportResponse) -> 
     Ok(())
 }
 
-fn materialize_ontology_minimal(base_dir: &StdPath, report: &WeeklyReportResponse) -> anyhow::Result<()> {
+fn materialize_ontology_minimal(
+    base_dir: &StdPath,
+    report: &WeeklyReportResponse,
+) -> anyhow::Result<()> {
     let ontology_dir = base_dir.join("ontology");
     fs::create_dir_all(&ontology_dir)?;
 
@@ -914,7 +953,11 @@ fn materialize_ontology_minimal(base_dir: &StdPath, report: &WeeklyReportRespons
     Ok(())
 }
 
-fn compute_weekly_report(db_path: &str, week: Option<String>, workspace_id: Option<String>) -> anyhow::Result<WeeklyReportResponse> {
+fn compute_weekly_report(
+    db_path: &str,
+    week: Option<String>,
+    workspace_id: Option<String>,
+) -> anyhow::Result<WeeklyReportResponse> {
     use rusqlite::Connection;
 
     let (report_id, start_utc, end_utc) = week_range_kst(week)?;
@@ -987,7 +1030,11 @@ fn compute_weekly_report(db_path: &str, week: Option<String>, workspace_id: Opti
     for row in patt_rows {
         let (name, count) = row?;
         patterns.push(WeeklyPattern {
-            name: if name.len() > 70 { format!("{}…", &name[..70]) } else { name },
+            name: if name.len() > 70 {
+                format!("{}…", &name[..70])
+            } else {
+                name
+            },
             count,
             suggestion: "반복 작업은 스크립트/자동화 후보로 검토".to_string(),
         });
@@ -1018,7 +1065,11 @@ fn compute_weekly_report(db_path: &str, week: Option<String>, workspace_id: Opti
             projects,
             top_tools,
         },
-        risk: WeeklyRisk { critical, warning, info },
+        risk: WeeklyRisk {
+            critical,
+            warning,
+            info,
+        },
         patterns,
         next_actions,
         markdown: String::new(),
@@ -1099,14 +1150,8 @@ mod brain_report_tests {
         persist_weekly_outputs(tmp.path(), &report).unwrap();
         materialize_ontology_minimal(tmp.path(), &report).unwrap();
 
-        assert!(tmp
-            .path()
-            .join("reports/weekly/2026-W09.md")
-            .exists());
-        assert!(tmp
-            .path()
-            .join("reports/weekly/2026-W09.json")
-            .exists());
+        assert!(tmp.path().join("reports/weekly/2026-W09.md").exists());
+        assert!(tmp.path().join("reports/weekly/2026-W09.json").exists());
         assert!(tmp.path().join("ontology/nodes.jsonl").exists());
         assert!(tmp.path().join("ontology/edges.jsonl").exists());
     }

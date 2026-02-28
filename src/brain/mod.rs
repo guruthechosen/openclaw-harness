@@ -42,7 +42,9 @@ pub struct BrainInsights {
     pub skills_inferred: usize,
 }
 
-pub fn build_ontology_from_db(conn: &Connection) -> anyhow::Result<(Vec<OntologyNode>, Vec<OntologyEdge>)> {
+pub fn build_ontology_from_db(
+    conn: &Connection,
+) -> anyhow::Result<(Vec<OntologyNode>, Vec<OntologyEdge>)> {
     let actions = load_actions(conn)?;
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
@@ -65,7 +67,10 @@ pub fn build_ontology_from_db(conn: &Connection) -> anyhow::Result<(Vec<Ontology
             },
         );
 
-        let session_val = a.session_id.clone().unwrap_or_else(|| "unknown".to_string());
+        let session_val = a
+            .session_id
+            .clone()
+            .unwrap_or_else(|| "unknown".to_string());
         let session = format!("session:{}", session_val);
         push_node(
             &mut nodes,
@@ -275,13 +280,26 @@ pub fn build_ontology_v2_from_db(
     }
 
     // 2) Decisions from intent-like commands
-    let decision_keywords = ["fix", "refactor", "implement", "optimize", "deploy", "rollback"];
+    let decision_keywords = [
+        "fix",
+        "refactor",
+        "implement",
+        "optimize",
+        "deploy",
+        "rollback",
+    ];
     let mut decisions_detected = 0usize;
-    for a in actions.iter().filter(|a| a.action_type.eq_ignore_ascii_case("Exec")) {
+    for a in actions
+        .iter()
+        .filter(|a| a.action_type.eq_ignore_ascii_case("Exec"))
+    {
         let lower = a.content.to_lowercase();
         if decision_keywords.iter().any(|k| lower.contains(k)) {
             decisions_detected += 1;
-            let decision_id = format!("decision:{}", hash_short(&format!("{}:{}", a.id, a.content)));
+            let decision_id = format!(
+                "decision:{}",
+                hash_short(&format!("{}:{}", a.id, a.content))
+            );
             let cmd_id = format!("command:{}", hash_short(&a.content));
             push_node(
                 &mut nodes,
@@ -315,7 +333,9 @@ pub fn build_ontology_v2_from_db(
          ORDER BY c DESC
          LIMIT 20",
     )?;
-    let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u32)))?;
+    let rows = stmt.query_map([], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)? as u32))
+    })?;
 
     let mut bottlenecks_detected = 0usize;
     for row in rows {
@@ -439,7 +459,10 @@ pub fn persist_ontology(
         nodes: nodes.len(),
         edges: edges.len(),
     };
-    fs::write(dir.join("summary.json"), serde_json::to_string_pretty(&summary)?)?;
+    fs::write(
+        dir.join("summary.json"),
+        serde_json::to_string_pretty(&summary)?,
+    )?;
     Ok(summary)
 }
 
@@ -467,13 +490,19 @@ pub fn persist_ontology_v2(
 
     fs::write(dir.join("nodes.jsonl"), nodes_jsonl)?;
     fs::write(dir.join("edges.jsonl"), edges_jsonl)?;
-    fs::write(dir.join("insights.json"), serde_json::to_string_pretty(insights)?)?;
+    fs::write(
+        dir.join("insights.json"),
+        serde_json::to_string_pretty(insights)?,
+    )?;
 
     let summary = OntologyBuildSummary {
         nodes: nodes.len(),
         edges: edges.len(),
     };
-    fs::write(dir.join("summary.json"), serde_json::to_string_pretty(&summary)?)?;
+    fs::write(
+        dir.join("summary.json"),
+        serde_json::to_string_pretty(&summary)?,
+    )?;
     Ok(summary)
 }
 

@@ -752,18 +752,12 @@ pub async fn query_brain_v2(
         "recommendations" => {
             let mut recs: Vec<serde_json::Value> = vec![];
 
-            let bottlenecks_count = rows
-                .iter()
-                .filter(|v| v["kind"] == "Bottleneck")
-                .count();
+            let bottlenecks_count = rows.iter().filter(|v| v["kind"] == "Bottleneck").count();
             let automation_count = rows
                 .iter()
                 .filter(|v| v["kind"] == "AutomationOpportunity")
                 .count();
-            let patterns_count = rows
-                .iter()
-                .filter(|v| v["kind"] == "TaskPattern")
-                .count();
+            let patterns_count = rows.iter().filter(|v| v["kind"] == "TaskPattern").count();
 
             if bottlenecks_count > 0 {
                 let score = (bottlenecks_count as u32 * 40).min(100);
@@ -868,7 +862,12 @@ pub async fn search_brain_v2(
         .map(|k| k.to_lowercase())
         .collect::<Vec<_>>();
 
-    let rows = load_jsonl(&brain_data_base_dir().join("ontology").join("v2").join("nodes.jsonl"))?;
+    let rows = load_jsonl(
+        &brain_data_base_dir()
+            .join("ontology")
+            .join("v2")
+            .join("nodes.jsonl"),
+    )?;
     let limit = body.limit.unwrap_or(20);
     let results = rows
         .into_iter()

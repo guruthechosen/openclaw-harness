@@ -23,8 +23,7 @@ fn write_ontology_fixture(base: &std::path::Path) {
     std::fs::write(v2.join("nodes.jsonl"), nodes_jsonl).unwrap();
 
     let edges_jsonl =
-        serde_json::to_string(&json!({"from":"p1","to":"a1","rel":"pattern_of"})).unwrap()
-            + "\n";
+        serde_json::to_string(&json!({"from":"p1","to":"a1","rel":"pattern_of"})).unwrap() + "\n";
     std::fs::write(v2.join("edges.jsonl"), edges_jsonl).unwrap();
 
     std::fs::write(

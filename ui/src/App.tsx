@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Rules from './pages/Rules'
 import Events from './pages/Events'
 import Settings from './pages/Settings'
+import Brain from './pages/Brain'
 import { useWebSocket } from './hooks/useWebSocket'
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
           <Route path="/rules" element={<Rules />} />
           <Route path="/events" element={<Events liveEvents={events} />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/brain" element={<Brain />} />
         </Route>
       </Routes>
     </BrowserRouter>

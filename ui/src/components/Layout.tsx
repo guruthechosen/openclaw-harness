@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Shield, LayoutDashboard, ShieldCheck, ScrollText, Settings } from 'lucide-react'
+import { Shield, LayoutDashboard, ShieldCheck, ScrollText, Settings, Network } from 'lucide-react'
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/rules', icon: ShieldCheck, label: 'Security Rules' },
   { to: '/events', icon: ScrollText, label: 'Activity Logs' },
   { to: '/settings', icon: Settings, label: 'System Settings' },
+  { to: '/brain', icon: Network, label: 'Ontology Brain' },
 ]
 
 export default function Layout({ connected }: { connected: boolean }) {

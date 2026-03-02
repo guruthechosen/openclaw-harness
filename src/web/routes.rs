@@ -16,7 +16,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path as StdPath;
+use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 
 // ============================================================================
@@ -569,6 +569,12 @@ fn save_alert_config_to_file(config: &AlertConfigResponse) -> anyhow::Result<()>
     Ok(())
 }
 
+fn brain_data_base_dir() -> PathBuf {
+    std::env::var("SAFEBOT_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("/Volumes/formac/proj/safebot-data"))
+}
+
 // ============================================================================
 // Adaptive Campaign (AI-driven dynamic mission)
 // ============================================================================
@@ -629,7 +635,7 @@ pub async fn build_ontology_v1(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let (nodes, edges) =
         build_ontology_from_db(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let summary = persist_ontology(StdPath::new("data"), &nodes, &edges)
+    let summary = persist_ontology(&brain_data_base_dir(), &nodes, &edges)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(BuildOntologyResponse { ok: true, summary }))
@@ -642,7 +648,7 @@ pub async fn build_ontology_v2(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let (nodes, edges, insights) =
         build_ontology_v2_from_db(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let summary = persist_ontology_v2(StdPath::new("data"), &nodes, &edges, &insights)
+    let summary = persist_ontology_v2(&brain_data_base_dir(), &nodes, &edges, &insights)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(BuildOntologyV2Response {
@@ -658,6 +664,13 @@ pub struct BrainQueryRequest {
     pub limit: Option<usize>,
 }
 
+#[derive(Deserialize)]
+pub struct BrainSearchRequest {
+    pub keyword: String,
+    pub kinds: Option<Vec<String>>,
+    pub limit: Option<usize>,
+}
+
 #[derive(Serialize)]
 pub struct BrainQueryResponse {
     pub ok: bool,
@@ -666,58 +679,226 @@ pub struct BrainQueryResponse {
     pub insights: Option<serde_json::Value>,
 }
 
+#[derive(Serialize)]
+pub struct BrainGraphResponse {
+    pub ok: bool,
+    pub nodes: Vec<serde_json::Value>,
+    pub edges: Vec<serde_json::Value>,
+    pub stats: serde_json::Value,
+}
+
+#[derive(Serialize)]
+pub struct BrainSearchResponse {
+    pub ok: bool,
+    pub keyword: String,
+    pub results: Vec<serde_json::Value>,
+}
+
+fn load_jsonl(path: &StdPath) -> Result<Vec<serde_json::Value>, StatusCode> {
+    let txt = fs::read_to_string(path).map_err(|_| StatusCode::BAD_REQUEST)?;
+    Ok(txt
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .collect())
+}
+
 pub async fn query_brain_v2(
     Json(body): Json<BrainQueryRequest>,
 ) -> Result<Json<BrainQueryResponse>, StatusCode> {
-    let base = StdPath::new("data/ontology/v2");
+    let base_dir = brain_data_base_dir();
+    let base = base_dir.join("ontology").join("v2");
     let nodes_path = base.join("nodes.jsonl");
     let insights_path = base.join("insights.json");
 
-    let nodes_txt = fs::read_to_string(nodes_path).map_err(|_| StatusCode::BAD_REQUEST)?;
-    let mut rows: Vec<serde_json::Value> = vec![];
-    for line in nodes_txt.lines() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
-            rows.push(v);
-        }
-    }
+    let rows = load_jsonl(&nodes_path)?;
 
     let limit = body.limit.unwrap_or(10);
+    let insights = fs::read_to_string(insights_path)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+
     let results = match body.query_type.as_str() {
         "top_bottlenecks" => rows
+            .clone()
             .into_iter()
             .filter(|v| v["kind"] == "Bottleneck")
             .take(limit)
             .collect(),
         "top_patterns" => rows
+            .clone()
             .into_iter()
             .filter(|v| v["kind"] == "TaskPattern")
             .take(limit)
             .collect(),
         "skills" => rows
+            .clone()
             .into_iter()
             .filter(|v| v["kind"] == "Skill")
             .take(limit)
             .collect(),
         "decisions" => rows
+            .clone()
             .into_iter()
             .filter(|v| v["kind"] == "Decision")
             .take(limit)
             .collect(),
+        "automation_opportunities" => rows
+            .clone()
+            .into_iter()
+            .filter(|v| v["kind"] == "AutomationOpportunity")
+            .take(limit)
+            .collect(),
+        "recommendations" => {
+            let mut recs: Vec<serde_json::Value> = vec![];
+
+            let bottlenecks_count = rows
+                .iter()
+                .filter(|v| v["kind"] == "Bottleneck")
+                .count();
+            let automation_count = rows
+                .iter()
+                .filter(|v| v["kind"] == "AutomationOpportunity")
+                .count();
+            let patterns_count = rows
+                .iter()
+                .filter(|v| v["kind"] == "TaskPattern")
+                .count();
+
+            if bottlenecks_count > 0 {
+                let score = (bottlenecks_count as u32 * 40).min(100);
+                recs.push(serde_json::json!({
+                    "priority": "high",
+                    "score": score,
+                    "title": format!("High-risk bottlenecks {}개 보호", bottlenecks_count),
+                    "rationale": "반복적으로 경고/치명 이벤트를 만든 커맨드에 대해 pre-check/deny rule 추가",
+                    "evidence": {"bottlenecks": bottlenecks_count}
+                }));
+            }
+
+            if automation_count > 0 {
+                let score = (automation_count as u32 * 25 + patterns_count as u32 * 10).min(95);
+                recs.push(serde_json::json!({
+                    "priority": "medium",
+                    "score": score,
+                    "title": format!("자동화 후보 {}개 스크립트화", automation_count),
+                    "rationale": "반복 + 리스크가 동시에 높은 작업을 wrapper script/alias로 표준화",
+                    "evidence": {"automation_opportunities": automation_count, "task_patterns": patterns_count}
+                }));
+            }
+
+            if let Some(i) = &insights {
+                let decisions = i["decisions_detected"].as_u64().unwrap_or(0);
+                if decisions >= 5 {
+                    let score = (50 + (decisions as u32).min(20)).min(90);
+                    recs.push(serde_json::json!({
+                        "priority": "medium",
+                        "score": score,
+                        "title": "의사결정 로그 정책 도입",
+                        "rationale": "결정성 커맨드가 많으므로 deploy/rollback/fix류 실행 전 체크리스트를 강제",
+                        "evidence": {"decisions_detected": decisions}
+                    }));
+                }
+            }
+
+            if recs.is_empty() {
+                recs.push(serde_json::json!({
+                    "priority": "low",
+                    "score": 20,
+                    "title": "데이터 추가 수집 필요",
+                    "rationale": "아직 추천을 만들 만큼 패턴이 충분치 않음"
+                }));
+            }
+
+            recs.sort_by(|a, b| {
+                let sa = a["score"].as_u64().unwrap_or(0);
+                let sb = b["score"].as_u64().unwrap_or(0);
+                sb.cmp(&sa)
+            });
+
+            recs.into_iter().take(limit).collect()
+        }
         _ => return Err(StatusCode::BAD_REQUEST),
     };
-
-    let insights = fs::read_to_string(insights_path)
-        .ok()
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
 
     Ok(Json(BrainQueryResponse {
         ok: true,
         query_type: body.query_type,
         results,
         insights,
+    }))
+}
+
+pub async fn get_brain_graph_v2() -> Result<Json<BrainGraphResponse>, StatusCode> {
+    let base = brain_data_base_dir().join("ontology").join("v2");
+    let nodes = load_jsonl(&base.join("nodes.jsonl"))?;
+    let edges = load_jsonl(&base.join("edges.jsonl"))?;
+
+    let mut by_kind: HashMap<String, u64> = HashMap::new();
+    for n in &nodes {
+        if let Some(kind) = n.get("kind").and_then(|k| k.as_str()) {
+            *by_kind.entry(kind.to_string()).or_insert(0) += 1;
+        }
+    }
+
+    Ok(Json(BrainGraphResponse {
+        ok: true,
+        stats: serde_json::json!({
+            "node_count": nodes.len(),
+            "edge_count": edges.len(),
+            "by_kind": by_kind,
+        }),
+        nodes,
+        edges,
+    }))
+}
+
+pub async fn search_brain_v2(
+    Json(body): Json<BrainSearchRequest>,
+) -> Result<Json<BrainSearchResponse>, StatusCode> {
+    let keyword = body.keyword.trim().to_lowercase();
+    if keyword.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let kinds = body
+        .kinds
+        .unwrap_or_default()
+        .into_iter()
+        .map(|k| k.to_lowercase())
+        .collect::<Vec<_>>();
+
+    let rows = load_jsonl(&brain_data_base_dir().join("ontology").join("v2").join("nodes.jsonl"))?;
+    let limit = body.limit.unwrap_or(20);
+    let results = rows
+        .into_iter()
+        .filter(|v| {
+            let title = v
+                .get("title")
+                .and_then(|s| s.as_str())
+                .unwrap_or_default()
+                .to_lowercase();
+            let id = v
+                .get("id")
+                .and_then(|s| s.as_str())
+                .unwrap_or_default()
+                .to_lowercase();
+            let kind = v
+                .get("kind")
+                .and_then(|s| s.as_str())
+                .unwrap_or_default()
+                .to_lowercase();
+
+            let kind_matches = kinds.is_empty() || kinds.iter().any(|k| k == &kind);
+            kind_matches && (title.contains(&keyword) || id.contains(&keyword))
+        })
+        .take(limit)
+        .collect::<Vec<_>>();
+
+    Ok(Json(BrainSearchResponse {
+        ok: true,
+        keyword,
+        results,
     }))
 }
 
@@ -1097,9 +1278,9 @@ pub async fn generate_weekly_report(
     let report = compute_weekly_report(&state.db_path, body.week, body.workspace_id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let base_dir = StdPath::new("data");
-    persist_weekly_outputs(base_dir, &report).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    materialize_ontology_minimal(base_dir, &report)
+    let base_dir = brain_data_base_dir();
+    persist_weekly_outputs(&base_dir, &report).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    materialize_ontology_minimal(&base_dir, &report)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(report))

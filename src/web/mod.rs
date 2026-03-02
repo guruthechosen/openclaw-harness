@@ -151,6 +151,8 @@ pub async fn start_server(
             post(routes::build_ontology_v2),
         )
         .route("/api/brain/query", post(routes::query_brain_v2))
+        .route("/api/brain/graph", get(routes::get_brain_graph_v2))
+        .route("/api/brain/search", post(routes::search_brain_v2))
         .route(
             "/api/alerts/config",
             get(routes::get_alert_config).put(routes::update_alert_config),

@@ -111,3 +111,60 @@ export const getEvents = (params?: { limit?: number; offset?: number; status?: s
   return api<{ events: EventData[]; total: number }>(`/api/events?${qs}`)
 }
 export const getRecentEvents = () => api<EventData[]>('/api/events/recent')
+
+
+export interface BrainNode {
+  id: string
+  kind: string
+  title: string
+}
+
+export interface BrainEdge {
+  from: string
+  to: string
+  rel: string
+}
+
+export interface BrainRecommendation {
+  priority: string
+  score?: number
+  title: string
+  rationale: string
+  evidence?: Record<string, unknown>
+}
+
+export interface BrainGraphData {
+  ok: boolean
+  nodes: BrainNode[]
+  edges: BrainEdge[]
+  stats: {
+    node_count: number
+    edge_count: number
+    by_kind: Record<string, number>
+  }
+}
+
+export interface BrainQueryResponse {
+  ok: boolean
+  query_type: string
+  results: unknown[]
+  insights?: unknown
+}
+
+export interface BrainSearchResponse {
+  ok: boolean
+  keyword: string
+  results: BrainNode[]
+}
+
+export const getBrainGraph = () => api<BrainGraphData>('/api/brain/graph')
+export const queryBrain = (query_type: string, limit = 10) =>
+  api<BrainQueryResponse>('/api/brain/query', {
+    method: 'POST',
+    body: JSON.stringify({ query_type, limit }),
+  })
+export const searchBrain = (keyword: string, kinds?: string[], limit = 20) =>
+  api<BrainSearchResponse>('/api/brain/search', {
+    method: 'POST',
+    body: JSON.stringify({ keyword, kinds, limit }),
+  })

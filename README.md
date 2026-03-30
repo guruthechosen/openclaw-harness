@@ -2,13 +2,13 @@
 
 # 🛡️ OpenClaw Harness
 
-**Security harness for AI coding agents — inspect, block, and audit every tool call before it executes.**
+**Security harness + AI Behavior Brain for OpenClaw and coding agents — block threats *and* understand your workflows.**
 
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg?logo=rust)](https://rustup.rs/)
 [![License](https://img.shields.io/badge/license-BSL_1.1-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/sparkishy/openclaw-harness?style=social)](https://github.com/sparkishy/openclaw-harness)
 
-[Quick Start](#-quick-start) · [Why](#-why) · [Features](#-features) · [Rules](#-rules) · [Architecture](#-architecture) · [OpenClaw Plugin](#-openclaw-plugin) · [Contributing](#-contributing)
+[Quick Start](#-quick-start) · [Why](#-why) · [Features](#-features) · [🧠 AI Behavior Brain](#-ai-behavior-brain) · [Rules](#-rules) · [Architecture](#-architecture) · [OpenClaw Plugin](#-openclaw-plugin) · [Contributing](#-contributing)
 
 </div>
 
@@ -16,11 +16,11 @@
 
 ## 🔥 Why
 
-On January 2026, an OpenClaw (Claude Code) session [executed arbitrary commands](https://github.com/sparkishy/openclaw-harness/issues/1) that modified system files and exfiltrated data — a textbook RCE via AI agent. The agent had full shell access with no guardrails.
+An OpenClaw session [executed arbitrary commands](https://github.com/sparkishy/openclaw-harness/issues/1) that modified system files and exfiltrated data — a textbook RCE via AI agent. The agent had full shell access with no guardrails.
 
-**AI coding agents are powerful. They're also unsupervised `root` shells.**
+**AI coding agents are powerful. They're also unsupervised shells unless you add guardrails.**
 
-OpenClaw Harness sits between the agent and your system. Every `exec`, `file_write`, and `http_request` is matched against security rules — dangerous calls are **blocked before execution**.
+OpenClaw Harness sits between the agent and your system. Dangerous `exec`, `write`, and `edit` calls can be checked and blocked **before execution**, while the daemon keeps an audit trail and builds workflow intelligence from your agent activity.
 
 ---
 
@@ -47,46 +47,82 @@ openclaw-harness start --foreground
 
 The web dashboard is available at **http://localhost:8380**.
 
-### OpenClaw 2026.2.26+ Compatibility Checklist (recommended)
+### Storage location (external drive / formac)
+
+By default, brain outputs and recommended DB location use external storage on **formac**:
+
+- Brain artifacts: `/Volumes/formac/proj/safebot-data/ontology/...`
+- Recommended DB path: `/Volumes/formac/proj/safebot-data/openclaw-harness.db`
+
+You can override with environment variable:
+
+```bash
+export SAFEBOT_DATA_DIR="/Volumes/formac/proj/safebot-data"
+```
+
+#### Fallback strategy when external drive is not mounted
+
+If `/Volumes/formac` is not mounted, brain/report persistence can fail.
+Use this fallback before starting harness:
+
+```bash
+# 1) Detect mount
+if [ ! -d /Volumes/formac/proj/safebot-data ]; then
+  echo "formac not mounted; using local fallback"
+  export SAFEBOT_DATA_DIR="$HOME/.openclaw-harness/fallback-data"
+  mkdir -p "$SAFEBOT_DATA_DIR"
+fi
+```
+
+Operational recommendation:
+- Keep production/default path on `/Volumes/formac/proj/safebot-data`
+- Use fallback only temporarily
+- When formac is back, sync or move fallback artifacts into formac storage
+
+### OpenClaw compatibility (current)
+
+OpenClaw Harness is still broadly compatible with recent OpenClaw builds, but the **recommended path is the plugin + built-in hook flow**.
 
 Use this checklist after any OpenClaw upgrade:
 
 ```bash
-# 1) Confirm versions
+# 1) Confirm the active OpenClaw version
 openclaw --version
 openclaw status
 
 # 2) Build harness
 cargo build --release
 
-# 3) Verify plugin path is installed
+# 3) Install or refresh the local plugin link
 openclaw plugins install -l ./openclaw-plugin
 
-# 4) Confirm plugin is not disabled
-# (in `openclaw status`, avoid: "plugins.entries.harness-guard: plugin disabled")
+# 4) Inspect plugin state
+openclaw plugins inspect harness-guard
+
+# 5) Enable it if needed
+openclaw plugins enable harness-guard
 ```
 
-If `openclaw-harness patch openclaw --check` fails with `Exec tool file not found`, treat it as a **legacy patcher limitation**, not a harness runtime failure on 2026.2.x.
+What changed in newer OpenClaw versions:
+- Recent OpenClaw builds already provide built-in `before_tool_call` support.
+- That means **legacy patching is no longer the primary integration path**.
+- `openclaw-harness patch openclaw --check` should be treated as a **legacy diagnostic**, not the main compatibility test.
 
 ### Patch OpenClaw (legacy only)
 
 ```bash
-# Inject before_tool_call hook into OpenClaw's exec tool (legacy builds)
+# Only for older OpenClaw builds that do not have built-in before_tool_call support
 openclaw-harness patch openclaw
 
-# Verify
+# Verify legacy patch state
 openclaw-harness patch openclaw --check
 ```
 
-> **Note:** OpenClaw **2026.2.x+** ships with built-in `before_tool_call` hooks, so no patch is required. `--check` will report that hooks are built-in.
+> **Current recommendation:** prefer `openclaw plugins install` + `openclaw plugins enable` over patching.
 >
-> **Tested:** Verified with OpenClaw **2026.2.26**.
+> **Important:** if `patch openclaw --check` reports missing internal files on newer OpenClaw versions, that usually indicates internal layout changes in OpenClaw, not a failure of the plugin-based integration.
 >
-> **Compatibility status (2026.2.26):** Plugin path and built-in hooks are compatible. Use the native plugin / built-in hook flow; do **not** rely on legacy patching.
->
-> **Important:** On newer OpenClaw builds, `openclaw-harness patch openclaw --check` may fail with `Exec tool file not found` because legacy file paths changed. This is expected when built-in hooks are present.
->
-> **Version mismatch tip:** If `openclaw --version` shows an older version but `openclaw status` mentions a newer one, you likely have multiple installs (e.g., Homebrew + nvm). Ensure your PATH points to the same OpenClaw binary you upgraded.
+> **Practical compatibility note:** on current OpenClaw, the first thing to verify is not patch status but whether `harness-guard` is installed, enabled, and visible via `openclaw plugins inspect harness-guard`.
 
 ### Docker
 
@@ -105,11 +141,111 @@ docker compose up --build
 | **25 Rule Templates** | Pre-built security scenarios — just pick a template and go |
 | **3 Rule Types** | Regex, Keyword, and Template — choose your style |
 | **Self-Protection** | 8 hardcoded tamper-proof rules prevent the agent from disabling the harness |
+| **🧠 AI Behavior Brain** | Semantic knowledge graph of your workflows — patterns, decisions, bottlenecks |
 | **API Proxy** | Transparent proxy for Anthropic/OpenAI/Gemini — inspects tool_use in streams |
-| **OpenClaw Plugin** | Native plugin with `before_tool_call` hook — no proxy needed |
+| **OpenClaw Plugin** | Native plugin using `before_tool_call` — recommended integration path on current OpenClaw |
 | **Real-time Alerts** | Telegram, Slack, Discord notifications on critical events |
-| **Web Dashboard** | Live event stream, rule management, statistics at port 8380 |
+| **Web Dashboard** | Live event stream, rule management, brain visualization at port 8380 |
 | **Audit Trail** | SQLite database logs every inspected action |
+
+---
+
+## 🧠 AI Behavior Brain
+
+**Your AI coding activity, visualized and understood.**
+
+OpenClaw Harness doesn't just block threats — it *learns* from your workflows. Every tool call, file edit, and command execution is analyzed and converted into a **semantic knowledge graph** — your personal "brain" that reveals patterns, decisions, and optimization opportunities.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    🧠 ONTOLOGY BRAIN v2                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│    ┌─────────┐         ┌──────────┐         ┌─────────┐        │
+│    │  User   │────────▶│ Sessions │────────▶│  Tools  │        │
+│    │  (You)  │         │  (S1,S2) │         │Exec/Edit│        │
+│    └────┬────┘         └────┬─────┘         └────┬────┘        │
+│         │                   │                    │             │
+│         ▼                   ▼                    ▼             │
+│    ┌─────────┐         ┌──────────┐         ┌─────────┐        │
+│    │ Skills  │         │ Commands │         │ Projects│        │
+│    │(Mastery)│         │(Actions) │         │(SafeBot)│        │
+│    └─────────┘         └────┬─────┘         └─────────┘        │
+│                             │                                   │
+│         ┌───────────────────┼───────────────────┐              │
+│         ▼                   ▼                   ▼              │
+│    ┌─────────┐        ┌──────────┐       ┌──────────┐         │
+│    │Patterns │        │Decisions │       │Incidents │         │
+│    │(Repeat) │        │(Intent)  │       │(Risk)    │         │
+│    └─────────┘        └──────────┘       └──────────┘         │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Semantic Node Types
+
+Harness builds a knowledge graph with **11 entity types** connected by **7 relationship types**:
+
+| Node Type | What It Represents |
+|-----------|-------------------|
+| `User` | You — the human operator |
+| `Session` | Individual OpenClaw chat sessions |
+| `Tool` | Tools used: Exec, Write, Read, Edit, WebSearch, etc. |
+| `Command` | Specific shell commands executed |
+| `File` | Files touched during sessions |
+| `Project` | Projects worked on (derived from paths) |
+| `Incident` | Security events (Warning/Critical) |
+| `TaskPattern` | Commands repeated 3+ times |
+| `Decision` | Intent-detected actions (fix/refactor/deploy/etc) |
+| `Bottleneck` | Risk-heavy commands (2+ incidents) |
+| `Skill` | Tool mastery scores (usage - risk hits) |
+
+### Insights You Get
+
+```bash
+# Build your brain from action history
+curl -X POST http://127.0.0.1:8380/api/brain/ontology/v2/build
+
+# Query your top productivity bottlenecks
+curl -X POST http://127.0.0.1:8380/api/brain/query \
+  -d '{"query_type":"top_bottlenecks","limit":5}'
+
+# Find automation opportunities
+curl -X POST http://127.0.0.1:8380/api/brain/query \
+  -d '{"query_type":"automation_opportunities","limit":5}'
+
+# Get personalized recommendations
+curl -X POST http://127.0.0.1:8380/api/brain/query \
+  -d '{"query_type":"recommendations","limit":3}'
+```
+
+### Weekly Reports
+
+Generate comprehensive weekly intelligence reports:
+
+```bash
+curl -X POST http://127.0.0.1:8380/api/reports/weekly/generate \
+  -d '{"week":"2026-W09"}'
+```
+
+Reports include:
+- **Pattern Analysis:** What you do repeatedly
+- **Decision Summary:** Key architectural choices made
+- **Bottleneck Report:** Where security friction slows you down
+- **Skill Development:** Which tools you're mastering
+- **Automation Recommendations:** Scripts to write, guardrails to add
+
+### Brain Dashboard
+
+Access the interactive brain visualization at `http://localhost:8380/brain`:
+
+- **Force-directed graph** of all nodes and relationships
+- **Filter by node type** — focus on patterns, decisions, or incidents
+- **Zoom & pan** through your workflow history
+- **Search** for specific commands or projects
+- **Time-filtered views** — see how your behavior evolves
+
+> 💡 **Pro tip:** Run `openclaw-harness start --foreground` and leave it running. The brain continuously learns from every session, building richer insights over time.
 
 ---
 
@@ -237,9 +373,11 @@ flowchart LR
 
 ### Two Operating Modes
 
-1. **Plugin Hook** (recommended) — Patches `before_tool_call` into the agent's exec tool. Commands are checked and blocked synchronously before execution.
+1. **Plugin Hook** (recommended) — Uses OpenClaw's built-in `before_tool_call` plugin hook. Commands are checked and blocked synchronously before execution.
 
 2. **API Proxy** — Transparent proxy between agent and AI provider. Inspects `tool_use` responses in the stream and strips dangerous calls.
+
+3. **Legacy patching** — Older compatibility path for OpenClaw builds that predate built-in hook support. Keep only for backward compatibility.
 
 ### Tech Stack
 
@@ -253,12 +391,17 @@ flowchart LR
 ## 🔌 OpenClaw Plugin
 
 ```bash
-# Install the plugin (included in this repo)
+# Install the plugin from this repo
 openclaw plugins install -l ./openclaw-plugin
+
+# Check the plugin record
+openclaw plugins inspect harness-guard
+
+# Enable it if disabled
+openclaw plugins enable harness-guard
 ```
 
 The plugin works in **Standalone** mode (built-in rules only, no daemon needed) or **Connected** mode (full features when daemon is running on port 8380). See [`openclaw-plugin/README.md`](openclaw-plugin/README.md) for details.
-
 
 ### Plugin health checks
 
@@ -266,11 +409,19 @@ After install/update, run:
 
 ```bash
 openclaw status
+openclaw plugins inspect harness-guard
 ```
 
-Healthy state should show no warning about `plugins.entries.harness-guard` being disabled.
+Healthy state should show:
+- no warning that `plugins.entries.harness-guard` is disabled
+- the plugin installed from your local repo path
+- the plugin enabled in config
 
-If you see that warning, enable the plugin entry in OpenClaw config and re-check `openclaw status`.
+If `openclaw status` warns that `harness-guard` is disabled, run:
+
+```bash
+openclaw plugins enable harness-guard
+```
 
 ---
 
@@ -310,6 +461,12 @@ cp config/default.yaml ~/.openclaw-harness/config.yaml
 # Run tests
 cargo test
 
+# Format check (CI parity)
+cargo fmt -- --check
+
+# Lint
+cargo clippy --all-targets -- -D warnings
+
 # Test a specific rule
 openclaw-harness test dangerous_rm "rm -rf /"
 # ✅ MATCH — Risk Level: Critical
@@ -317,6 +474,45 @@ openclaw-harness test dangerous_rm "rm -rf /"
 # Test in monitor-only mode
 openclaw-harness start --foreground --mode monitor
 ```
+
+## 🔁 Brain Operations (Daily/Weekly)
+
+### Daily
+1. Ensure daemon is running and actions are being collected.
+2. Build latest semantic brain graph:
+
+```bash
+curl -X POST http://127.0.0.1:8380/api/brain/ontology/v2/build
+```
+
+3. Query insights:
+
+```bash
+curl -X POST http://127.0.0.1:8380/api/brain/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query_type":"top_bottlenecks","limit":5}'
+
+curl -X POST http://127.0.0.1:8380/api/brain/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query_type":"automation_opportunities","limit":5}'
+
+curl -X POST http://127.0.0.1:8380/api/brain/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query_type":"recommendations","limit":3}'
+```
+
+### Weekly
+1. Generate weekly report:
+
+```bash
+curl -X POST http://127.0.0.1:8380/api/reports/weekly/generate   -H 'Content-Type: application/json'   -d '{"week":"2026-W09"}'
+```
+
+2. Review:
+- `ontology/v2/insights.json`
+- `reports/weekly/<week>.md`
+- top bottlenecks/patterns/skills/decisions
+
 
 ---
 

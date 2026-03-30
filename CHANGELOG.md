@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- Brain weekly report APIs:
+  - `GET /api/reports/weekly?week=YYYY-Www`
+  - `POST /api/reports/weekly/generate`
+- Weekly report persistence:
+  - `data/reports/weekly/<week>.md`
+  - `data/reports/weekly/<week>.json`
+- Minimal ontology materialization outputs:
+  - `data/ontology/nodes.jsonl`
+  - `data/ontology/edges.jsonl`
+
+- Adaptive campaign production planner (`LlmAiPlanner`) with:
+  - strict mission JSON validation
+  - retry/repair loop
+  - SQLite audit logging (`mission_generation_audit`)
+  - configurable provider env (`SAFEBOT_LLM_API_KEY`, `SAFEBOT_LLM_BASE_URL`, `SAFEBOT_LLM_MODEL`)
+- Ontology v1 user-brain pipeline:
+  - deterministic graph builder from OpenClaw action logs
+  - persistence outputs: `data/ontology/v1/nodes.jsonl`, `edges.jsonl`, `summary.json`
+  - API endpoint: `POST /api/brain/ontology/build`
+- Ontology v2 semantic layer:
+  - semantic entities: `TaskPattern`, `Decision`, `Bottleneck`, `Skill`
+  - artifacts: `data/ontology/v2/nodes.jsonl`, `edges.jsonl`, `insights.json`, `summary.json`
+  - API endpoint: `POST /api/brain/ontology/v2/build`
+- Detailed user guide for Brain v2:
+  - `docs/brain-v2-user-guide.md`
+- Brain query API:
+  - endpoint: `POST /api/brain/query`
+  - semantic query modes: `top_bottlenecks`, `top_patterns`, `skills`, `decisions`
+
+### Fixed
+- UI quality gate issues in dashboard/rules/settings/websocket hooks (lint/build clean)
+
 ## [0.2.0] — 2026-02-02
 
 ### Added

@@ -79,6 +79,9 @@ sha2 = "0.10"
 # Directory paths
 dirs = "5.0"
 
+# Static patterns
+lazy_static = "1.4"
+
 [dev-dependencies]
 tempfile = "3.9"
 tokio-test = "0.4"

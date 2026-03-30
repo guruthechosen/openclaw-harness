@@ -13,7 +13,7 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::info;
 
 use crate::proxy::config::ProxyConfig;
@@ -172,9 +172,13 @@ pub async fn start_server(
                 .allow_headers(Any),
         );
 
-    // Serve static files if directory provided
+    // Serve static files if directory provided (SPA support)
     if let Some(dir) = static_dir {
-        app = app.fallback_service(ServeDir::new(dir));
+        let index_file = format!("{}/index.html", dir);
+        app = app.fallback_service(
+            ServeDir::new(&dir)
+                .not_found_service(ServeFile::new(&index_file))
+        );
     }
 
     let addr = format!("0.0.0.0:{}", port);

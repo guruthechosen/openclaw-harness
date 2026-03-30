@@ -862,12 +862,7 @@ pub async fn search_brain_v2(
         .map(|k| k.to_lowercase())
         .collect::<Vec<_>>();
 
-    let rows = load_jsonl(
-        &brain_data_base_dir()
-            .join("ontology")
-            .join("v2")
-            .join("nodes.jsonl"),
-    )?;
+    let rows = load_jsonl(&brain_data_base_dir().join("ontology").join("v2").join("nodes.jsonl"))?;
     let limit = body.limit.unwrap_or(20);
     let results = rows
         .into_iter()
@@ -1335,4 +1330,50 @@ mod brain_report_tests {
         assert!(tmp.path().join("ontology/nodes.jsonl").exists());
         assert!(tmp.path().join("ontology/edges.jsonl").exists());
     }
+}
+
+// ============================================================================
+// Proof of Work API (TODO: Add enforcer to AppState)
+// ============================================================================
+
+#[derive(Serialize)]
+pub struct PoWStatsResponse {
+    pub total_proofs: usize,
+    pub blocked: usize,
+    pub allowed: usize,
+    pub human_overrides: usize,
+    pub avg_duration_ms: u64,
+    pub total_cost_usd: f64,
+}
+
+#[derive(Serialize)]
+pub struct PoWDailyReportResponse {
+    pub date: String,
+    pub report: String,
+}
+
+pub async fn get_pow_stats(State(_state): State<Arc<AppState>>) -> Json<PoWStatsResponse> {
+    // TODO: Implement with enforcer
+    Json(PoWStatsResponse {
+        total_proofs: 0,
+        blocked: 0,
+        allowed: 0,
+        human_overrides: 0,
+        avg_duration_ms: 0,
+        total_cost_usd: 0.0,
+    })
+}
+
+pub async fn get_pow_daily_report(
+    Query(params): Query<HashMap<String, String>>,
+    State(_state): State<Arc<AppState>>,
+) -> Json<PoWDailyReportResponse> {
+    let date_str = params.get("date").cloned().unwrap_or_else(|| {
+        chrono::Local::now().format("%Y-%m-%d").to_string()
+    });
+    
+    Json(PoWDailyReportResponse {
+        date: date_str,
+        report: "Not implemented yet".to_string(),
+    })
 }

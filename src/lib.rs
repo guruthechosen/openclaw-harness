@@ -8,6 +8,7 @@ pub mod campaign;
 pub mod collectors;
 pub mod db;
 pub mod enforcer;
+pub mod orchestrator;
 pub mod patcher;
 pub mod proxy;
 pub mod rules;
@@ -208,7 +209,7 @@ impl Default for Config {
                 slack: None,
                 discord: None,
             },
-            db_path: "~/.openclaw-harness/openclaw-harness.db".to_string(),
+            db_path: "/Volumes/formac/proj/safebot-data/openclaw-harness.db".to_string(),
             log_retention_days: 30,
         }
     }

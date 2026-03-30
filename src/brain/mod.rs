@@ -40,6 +40,7 @@ pub struct BrainInsights {
     pub decisions_detected: usize,
     pub bottlenecks_detected: usize,
     pub skills_inferred: usize,
+    pub automation_opportunities: usize,
 }
 
 pub fn build_ontology_from_db(
@@ -421,11 +422,64 @@ pub fn build_ontology_v2_from_db(
         }
     }
 
+    // 5) Automation opportunities from repeated + risky commands
+    let mut automation_opportunities = 0usize;
+    for (cmd, count) in command_counts.iter() {
+        if *count < 3 {
+            continue;
+        }
+
+        let risk_hits: u32 = conn
+            .query_row(
+                "SELECT COUNT(*)
+                 FROM analysis_results r
+                 JOIN actions a ON a.id = r.action_id
+                 WHERE r.risk_level IN ('Warning','Critical')
+                   AND a.content = ?1",
+                [cmd],
+                |r| r.get::<_, i64>(0),
+            )
+            .map(|v| v as u32)
+            .unwrap_or(0);
+
+        if risk_hits == 0 {
+            continue;
+        }
+
+        automation_opportunities += 1;
+        let opp_id = format!("automation:{}", hash_short(cmd));
+        let cmd_id = format!("command:{}", hash_short(cmd));
+
+        push_node(
+            &mut nodes,
+            &mut node_seen,
+            OntologyNode {
+                id: opp_id.clone(),
+                kind: "AutomationOpportunity".to_string(),
+                title: format!(
+                    "repeat x{} + risk x{} → automate/guardrail candidate: {}",
+                    count, risk_hits, cmd
+                ),
+            },
+        );
+
+        push_edge(
+            &mut edges,
+            &mut edge_seen,
+            OntologyEdge {
+                from: opp_id,
+                to: cmd_id,
+                rel: "suggests_automation_for".to_string(),
+            },
+        );
+    }
+
     let insights = BrainInsights {
         repeated_patterns,
         decisions_detected,
         bottlenecks_detected,
         skills_inferred,
+        automation_opportunities,
     };
 
     Ok((nodes, edges, insights))

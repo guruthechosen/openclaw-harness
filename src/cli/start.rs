@@ -2,6 +2,7 @@
 
 use openclaw_harness::analyzer::Analyzer;
 use openclaw_harness::collectors::{openclaw::OpenclawCollector, Collector};
+use openclaw_harness::db::Database;
 use openclaw_harness::enforcer::alerter::Alerter;
 use openclaw_harness::rules::{default_rules, load_rules_from_file};
 use openclaw_harness::web::{self, WebEvent};
@@ -14,6 +15,28 @@ use tracing::{error, info, warn};
 
 const PID_FILE: &str = "/tmp/openclaw-harness.pid";
 const CONFIG_HASH_FILE: &str = "/tmp/openclaw-harness-config.hash";
+
+fn resolve_db_path() -> String {
+    let raw = std::env::var("OPENCLAW_HARNESS_DB_PATH")
+        .or_else(|_| std::env::var("SAFEBOT_DB_PATH"))
+        .unwrap_or_else(|_| "~/.openclaw-harness/openclaw-harness.db".to_string());
+
+    let expanded = if let Some(stripped) = raw.strip_prefix("~/") {
+        if let Ok(home) = std::env::var("HOME") {
+            format!("{}/{}", home, stripped)
+        } else {
+            raw
+        }
+    } else {
+        raw
+    };
+
+    if let Some(parent) = std::path::Path::new(&expanded).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    expanded
+}
 
 /// Compute SHA256 hash of a file
 fn compute_config_hash(path: &std::path::Path) -> Option<String> {
@@ -189,9 +212,16 @@ async fn run_daemon() -> anyhow::Result<()> {
         .and_then(|p| p.parse().ok())
         .unwrap_or(8380);
 
-    let db_path = "~/.openclaw-harness/openclaw-harness.db".to_string();
+    let db_path = resolve_db_path();
+    if let Err(e) = Database::open(std::path::Path::new(&db_path)) {
+        warn!("⚠️ Failed to initialize DB at {}: {}", db_path, e);
+    }
+    
+    // Serve built UI from dist folder
+    let static_dir = Some("/Volumes/formac/proj/safebot/ui/dist".to_string());
+    
     tokio::spawn(async move {
-        if let Err(e) = web::start_server(web_port, web_tx_clone, db_path, None).await {
+        if let Err(e) = web::start_server(web_port, web_tx_clone, db_path, static_dir).await {
             error!("Web server error: {}", e);
         }
     });
@@ -216,19 +246,20 @@ async fn run_daemon() -> anyhow::Result<()> {
     // Create channel for actions
     let (tx, mut rx) = mpsc::channel::<AgentAction>(100);
 
-    // Start OpenClaw collector
-    let collector = OpenclawCollector::new();
-    if collector.is_available() {
-        info!("🦞 OpenClaw collector available");
-        let tx_clone = tx.clone();
-        tokio::spawn(async move {
-            if let Err(e) = collector.start(tx_clone).await {
-                error!("OpenClaw collector error: {}", e);
-            }
-        });
-    } else {
-        warn!("⚠️  OpenClaw sessions directory not found");
-    }
+    // Start OpenClaw collector (disabled for UI testing)
+    // let collector = OpenclawCollector::new();
+    // if collector.is_available() {
+    //     info!("🦞 OpenClaw collector available");
+    //     let tx_clone = tx.clone();
+    //     tokio::spawn(async move {
+    //         if let Err(e) = collector.start(tx_clone).await {
+    //             error!("OpenClaw collector error: {}", e);
+    //         }
+    //     });
+    // } else {
+    //     warn!("⚠️  OpenClaw sessions directory not found");
+    // }
+    warn!("⚠️  OpenClaw collector disabled for UI testing");
 
     info!("✅ OpenClaw Harness daemon started successfully");
     info!("👀 Monitoring for AI agent actions...");

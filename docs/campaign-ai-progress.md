@@ -1,0 +1,65 @@
+# Campaign AI Dynamic Rule Generation - Progress Notes
+
+## 2026-02-27
+
+- [START] Began implementation of dynamic AI-driven campaign rule generation engine.
+- Scope: behavior-driven mission generation, reward clamp by human cap, feasibility checks, integration tests.
+- [PROGRESS] Added `src/campaign/mod.rs` with:
+  - `CampaignEngine` orchestration
+  - AI planner trait (`MissionAiPlanner`) for delegated mission generation
+  - Behaviour loading from `Behaviours` table
+  - User statistics extraction and feasibility guardrails
+  - Reward point clamping by human max cap
+- [PROGRESS] Added integration tests in `tests/campaign_engine_integration.rs`.
+- [PROGRESS] Added default planner `HeuristicAiPlanner` (AI delegation contract-ready) and integrated adaptive campaign API endpoint:
+  - `POST /api/campaigns/adaptive/generate`
+  - Input: `user_id`, `max_points_per_mission`, optional feasibility thresholds
+  - Output: generated dynamic mission + clamped final points
+- [VERIFY] Backend test/build passed:
+  - `cargo test` => 49 tests passed total (unit + integration)
+  - `cargo build --release` => success
+- [VERIFY] Frontend quality gate passed:
+  - `npm run lint` => success
+  - `npm run build` => success (bundle size warning only)
+- [PROGRESS] Replaced heuristic planner with production `LlmAiPlanner`:
+  - strict JSON contract parsing via `MissionDraft` deserialization
+  - guardrail validation (ranges, required_count/window_hours > 0)
+  - hard cap enforcement for recommended points
+  - retry/repair loop (up to 3 attempts)
+  - audit logging to SQLite table `mission_generation_audit`
+  - environment-based provider config (`SAFEBOT_LLM_*`)
+- [RE-VERIFY] After LLM planner replacement:
+  - `cargo test` => success (48 unit tests + 2 integration tests)
+  - `cargo build --release` => success
+  - `npm run lint` => success
+  - `npm run build` => success (bundle warning only)
+- [NEW] Ontology v1 development started for user brain:
+  - Added spec: `docs/ontology-v1.md`
+  - Added module: `src/brain/mod.rs`
+  - Added API: `POST /api/brain/ontology/build`
+  - Added integration test: `tests/ontology_integration.rs`
+- [RE-VERIFY] Ontology integration and full build:
+  - `cargo test` => success (49 unit tests + 3 integration tests total)
+  - `cargo build --release` => success
+  - `npm run lint` => success
+  - `npm run build` => success (bundle warning only)
+- [NEW] Ontology v2 semantic layer implemented:
+  - semantic nodes: `TaskPattern`, `Decision`, `Bottleneck`, `Skill`
+  - semantic edges: `pattern_of`, `derived_from`, `caused_by`, `has_skill`
+  - API endpoint: `POST /api/brain/ontology/v2/build`
+  - artifacts: `data/ontology/v2/{nodes,edges,insights,summary}.json*`
+- [DOC] Added detailed usage and value guide:
+  - `docs/brain-v2-user-guide.md`
+- [RE-VERIFY] After Ontology v2 implementation:
+  - `cargo test` => success (49 unit tests + 4 integration tests)
+  - `cargo build --release` => success
+  - `npm run lint` => success
+  - `npm run build` => success (bundle warning only)
+
+- [NEW] Brain query API implemented: `POST /api/brain/query`
+  - query types: `top_bottlenecks`, `top_patterns`, `skills`, `decisions`
+  - reads ontology v2 artifacts and returns filtered semantic results
+- [RE-VERIFY] Query API integration pass:
+  - `cargo test -q` => success
+  - `npm run lint` => success
+  - `npm run build` => success (bundle warning only)

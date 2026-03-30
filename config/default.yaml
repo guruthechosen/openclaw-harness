@@ -39,7 +39,7 @@ web:
 # Database
 # ──────────────────────────────────────────
 database:
-  path: "~/.openclaw-harness/openclaw-harness.db"
+  path: "/Volumes/formac/proj/safebot-data/openclaw-harness.db"
   log_retention_days: 30
 
 # ──────────────────────────────────────────
@@ -79,4 +79,4 @@ performance:
 # ──────────────────────────────────────────
 logging:
   level: "info"   # debug | info | warn | error
-  file: "~/.openclaw-harness/openclaw-harness.log"
+  file: "/Volumes/formac/proj/safebot-data/openclaw-harness.log"

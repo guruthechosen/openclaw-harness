@@ -1323,6 +1323,7 @@ dependencies = [
  "dirs",
  "futures-util",
  "glob",
+ "lazy_static",
  "libc",
  "notify",
  "regex",

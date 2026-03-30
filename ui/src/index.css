@@ -8,4 +8,97 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: #000;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Neon glow effects - Minority Report style */
+.neon-glow {
+  box-shadow: 0 0 10px rgba(0, 185, 249, 0.5),
+              0 0 20px rgba(0, 185, 249, 0.3),
+              0 0 30px rgba(0, 185, 249, 0.1);
+}
+
+.neon-text {
+  text-shadow: 0 0 5px rgba(0, 185, 249, 0.8),
+               0 0 10px rgba(0, 185, 249, 0.5);
+}
+
+/* Holographic effect */
+.holo-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 185, 249, 0.05) 0%,
+    rgba(155, 93, 229, 0.05) 50%,
+    rgba(0, 245, 212, 0.05) 100%
+  );
+  border: 1px solid rgba(0, 185, 249, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+/* Animated grid background */
+@keyframes gridMove {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 50px 50px;
+  }
+}
+
+.animated-grid {
+  animation: gridMove 20s linear infinite;
+}
+
+/* Pulse animation for active nodes */
+@keyframes nodePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.8;
+  }
+}
+
+.node-pulse {
+  animation: nodePulse 1s ease-in-out;
+}
+
+/* Scan line effect */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
+}
+
+.scanline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    rgba(0, 185, 249, 0.5),
+    transparent
+  );
+  animation: scanline 4s linear infinite;
+  pointer-events: none;
 }
